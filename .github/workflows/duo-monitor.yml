@@ -1,0 +1,53 @@
+name: iPhone Duo 库存监控
+
+on:
+  schedule:
+    # 私有仓库每月免费 2000 分钟，每次运行按 1 分钟计，每 20 分钟一次刚好够用。
+    # 仓库改成公开后不限额度，可以改成 "*/5 * * * *"（GitHub 允许的最短间隔）。
+    # 高峰期 GitHub 的定时任务可能会延迟几分钟。
+    - cron: "*/20 * * * *"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "运行模式"
+        type: choice
+        default: check
+        options:
+          - check      # 检查库存，新到货就推送
+          - once       # 打印所有门店×型号的当前状态
+          - discover   # 列出购买页里的所有 part number
+          - test-bark  # 发一条测试推送
+
+concurrency:
+  group: duo-monitor
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # 记住上次各门店的库存状态，只在「无货 → 有货」时推送
+      - uses: actions/cache@v4
+        with:
+          path: state.json
+          key: duo-state-${{ github.run_id }}
+          restore-keys: duo-state-
+
+      - name: Run
+        env:
+          BARK_KEY: ${{ secrets.BARK_KEY }}
+          MODE: ${{ inputs.mode || 'check' }}
+        run: |
+          case "$MODE" in
+            check)     python3 duo_monitor.py -c config.cloud.json --state state.json ;;
+            once)      python3 duo_monitor.py -c config.cloud.json --once ;;
+            discover)  python3 duo_monitor.py -c config.cloud.json --discover ;;
+            test-bark) python3 duo_monitor.py -c config.cloud.json --test-bark ;;
+          esac

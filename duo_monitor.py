@@ -11,6 +11,7 @@
 
 import argparse
 import json
+import os
 import random
 import re
 import sys
@@ -43,7 +44,7 @@ def http_get(url, referer=None, timeout=15):
         return resp.read().decode("utf-8", errors="replace")
 
 
-def load_config(path):
+def load_config(path, require_parts=True):
     with open(path, encoding="utf-8") as f:
         cfg = json.load(f)
     cfg.setdefault("store_host", "https://www.apple.com.cn")
@@ -55,7 +56,12 @@ def load_config(path):
     cfg["bark"].setdefault("group", "iPhone Duo")
     cfg["bark"].setdefault("level", "timeSensitive")
     cfg["bark"].setdefault("sound", "alarm")
-    if not cfg.get("parts"):
+    # 云端运行时 Key 放在 GitHub Secrets 里，通过环境变量传入，不写进仓库
+    if os.environ.get("BARK_KEY"):
+        cfg["bark"]["key"] = os.environ["BARK_KEY"]
+    if not cfg.get("parts") and not require_parts:
+        cfg["parts"] = {}
+    elif not cfg.get("parts"):
         sys.exit("config.json 里 parts 为空，先运行 --discover 找到 part number 再填进去")
     if isinstance(cfg["parts"], list):
         cfg["parts"] = {p: "" for p in cfg["parts"]}
@@ -184,6 +190,7 @@ def main():
     ap.add_argument("--once", action="store_true", help="只查一次，打印全部结果")
     ap.add_argument("--discover", action="store_true", help="列出购买页里的 part number")
     ap.add_argument("--test-bark", action="store_true", help="发送测试推送")
+    ap.add_argument("--state", help="单次检查并推送新到货，状态存到该文件（给定时任务用）")
     args = ap.parse_args()
 
     if args.discover:
@@ -197,11 +204,28 @@ def main():
         print(json.dumps(parts, ensure_ascii=False, indent=2))
         return
 
-    cfg = load_config(args.config)
+    cfg = load_config(args.config, require_parts=not (args.state or args.test_bark))
 
     if args.test_bark:
         ok = bark_push(cfg, "iPhone Duo 监控", "测试推送：Bark 配置正常 ✅")
         sys.exit(0 if ok else 1)
+
+    if args.state:
+        if not cfg["parts"]:
+            log("parts 还是空的：先手动运行一次 discover，把型号填进配置文件")
+            return
+        state_path = Path(args.state)
+        try:
+            saved = json.loads(state_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            saved = {}
+        last_state = {tuple(k.split("|", 1)): v for k, v in saved.items()}
+        check_once(cfg, last_state)
+        state_path.write_text(
+            json.dumps({"|".join(k): v for k, v in last_state.items()}, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        return
 
     if args.once:
         for key, info in sorted(query_availability(cfg).items()):

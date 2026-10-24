@@ -1,0 +1,11 @@
+{
+  "store_host": "https://www.apple.com",
+  "product_path": "/shop/buy-iphone/iphone-duo",
+  "location": "91748",
+  "stores": [],
+  "parts": {},
+  "bark": {
+    "level": "timeSensitive",
+    "sound": "alarm"
+  }
+}

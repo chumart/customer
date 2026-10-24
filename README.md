@@ -4,7 +4,26 @@
 
 只依赖 Python 3.8+ 标准库，无需 `pip install`。
 
-## 使用
+## 云端运行（推荐，不需要电脑，全程手机操作）
+
+用 GitHub Actions 定时运行，所有操作都可以在手机浏览器里打开 github.com 完成：
+
+1. **填 Bark Key**：仓库 → Settings → Secrets and variables → Actions → New repository secret，
+   名称填 `BARK_KEY`，值填 Bark App 里的设备 Key。
+2. **测试推送**：仓库 → Actions → 「iPhone Duo 库存监控」→ Run workflow，模式选 `test-bark`，手机应该能收到通知。
+3. **查型号编号**：同样 Run workflow，模式选 `discover`，运行完点进日志就能看到所有 part number。
+4. **填配置**：在网页上编辑 `config.cloud.json`，把想要的型号填进 `parts`，例如
+   `"parts": {"MABC1LL/A": "256G 黑色 无锁版"}`，然后 commit。
+   `location` 默认是邮编 91748，可以按需修改。
+5. **确认结果**：Run workflow 选 `once`，在日志里查看附近每家门店的当前状态。
+
+之后就会每 20 分钟自动检查一次，有新到货时推送。私有仓库每月免费额度只有 2000 分钟，每 20 分钟一次刚好用得完；
+把仓库改成公开（Key 存在 Secrets 里，不会泄露）后不限额度，可以把 `.github/workflows/duo-monitor.yml`
+里的 cron 改成 `*/5 * * * *`。不想监控了就在 Actions 页面点「Disable workflow」。
+
+> 注意：Apple 有时会拦截来自数据中心 IP 的请求。如果日志里一直是 HTTP 403/541，说明 GitHub 的服务器被挡了，需要换别的运行方式。
+
+## 在电脑上运行
 
 1. 在 iPhone 上安装 Bark App，复制设备 Key（推送 URL `https://api.day.app/XXXX/` 里的 `XXXX`）。
 2. `cp config.example.json config.json`，填 `bark.key`；示例默认查美国官网、邮编 91748 附近门店，在别处就改 `store_host` 和 `location`。
