@@ -1,0 +1,11 @@
+#!name=iPhone Duo 库存监控
+#!desc=定时检查附近 Apple Store 的 iPhone Duo 门店取货库存，有货时用 Bark 推送。PARTS 留空时会把所有型号编号推送给你。
+
+[Argument]
+BARK_KEY = input,"",tag=Bark Key,desc=Bark App 里的设备 Key
+PARTS = input,"",tag=型号编号,desc=逗号分隔；留空则推送型号编号列表
+ZIP = input,"91748",tag=邮编,desc=美国邮编；国行填"上海 上海 黄浦区"
+STORES = input,"",tag=门店编号,desc=只看这些门店，逗号分隔；留空=附近全部
+
+[Script]
+cron "*/2 * * * *" script-path=https://raw.githubusercontent.com/chumart/customer/master/mobile/duo_monitor.js, timeout=30, tag=iPhone Duo 库存, argument=[{BARK_KEY},{PARTS},{ZIP},{STORES}]

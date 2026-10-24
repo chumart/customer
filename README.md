@@ -4,7 +4,11 @@
 
 只依赖 Python 3.8+ 标准库，无需 `pip install`。
 
-## 云端运行（推荐，不需要电脑，全程手机操作）
+## iPhone 后台运行（Surge / Loon / Quantumult X / 小火箭）
+
+见 [mobile/README.md](mobile/README.md)。
+
+## 云端运行（GitHub Actions，不需要电脑，全程手机操作）
 
 用 GitHub Actions 定时运行，所有操作都可以在手机浏览器里打开 github.com 完成：
 
