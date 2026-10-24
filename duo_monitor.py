@@ -110,7 +110,7 @@ def discover_parts(cfg):
         attrs = dict(re.findall(r'"(dimension\w+)"\s*:\s*"([^"]*)"', blob))
         found[part] = " ".join(v for k, v in sorted(attrs.items()) if v)
     if not found:
-        for part in set(re.findall(r'"(M[A-Z0-9]{3,4}CH/A)"', html)):
+        for part in set(re.findall(r'"(M[A-Z0-9]{3,4}[A-Z]{1,2}/A)"', html)):
             found[part] = ""
     return found
 

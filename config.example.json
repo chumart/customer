@@ -5,12 +5,12 @@
     "level": "timeSensitive",
     "sound": "alarm"
   },
-  "store_host": "https://www.apple.com.cn",
+  "store_host": "https://www.apple.com",
   "product_path": "/shop/buy-iphone/iphone-duo",
-  "location": "上海 上海 黄浦区",
+  "location": "91748",
   "stores": [],
   "parts": {
-    "MXXXXCH/A": "iPhone Duo 512GB 示例颜色（用 --discover 得到真实 part number 后替换）"
+    "MXXXXLL/A": "iPhone Duo 512GB 示例颜色（用 --discover 得到真实 part number 后替换）"
   },
   "interval_seconds": 60
 }
