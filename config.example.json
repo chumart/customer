@@ -1,0 +1,16 @@
+{
+  "bark": {
+    "key": "你的Bark设备Key",
+    "server": "https://api.day.app",
+    "level": "timeSensitive",
+    "sound": "alarm"
+  },
+  "store_host": "https://www.apple.com.cn",
+  "product_path": "/shop/buy-iphone/iphone-duo",
+  "location": "上海 上海 黄浦区",
+  "stores": [],
+  "parts": {
+    "MXXXXCH/A": "iPhone Duo 512GB 示例颜色（用 --discover 得到真实 part number 后替换）"
+  },
+  "interval_seconds": 60
+}
