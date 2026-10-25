@@ -35,9 +35,8 @@ UA = (
 
 
 # 共用 Cookie：先访问购买页拿到 Apple 下发的 Cookie，库存接口才不容易返回 541
-_opener = urllib.request.build_opener(
-    urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar())
-)
+_cookies = http.cookiejar.CookieJar()
+_opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(_cookies))
 
 
 def log(msg):
@@ -156,19 +155,21 @@ def discover_parts(cfg):
 
 def query_availability(cfg):
     """返回 {(part, storeNumber): info}，info 含 available/门店名/型号名/提示文本。"""
-    params = {"fae": "true", "pl": "true", "mts.0": "regular", "mts.1": "compact"}
+    # 美国站新接口 fulfillment-messages 会返回 541/404，旧接口 retail/pickup-message 实测可用
+    params = {"pl": "true"}
     for i, part in enumerate(cfg["parts"]):
         params[f"parts.{i}"] = part
     if cfg.get("location"):
         params["location"] = cfg["location"]
     elif cfg["stores"]:
         params["store"] = cfg["stores"][0]
-    url = cfg["store_host"] + "/shop/fulfillment-messages?" + urllib.parse.urlencode(params)
-    http_get(cfg["store_host"] + cfg["product_path"])  # 先拿 Cookie
+    url = cfg["store_host"] + "/shop/retail/pickup-message?" + urllib.parse.urlencode(params)
+    if not _cookies:
+        http_get(cfg["store_host"] + cfg["product_path"])  # 先拿 Cookie
     data = json.loads(http_get(url, referer=cfg["store_host"] + cfg["product_path"]))
 
-    content = data.get("body", {}).get("content", {})
-    stores = content.get("pickupMessage", {}).get("stores", [])
+    body = data.get("body", {})
+    stores = body.get("stores") or body.get("content", {}).get("pickupMessage", {}).get("stores", [])
     wanted_stores = set(cfg["stores"])
     result = {}
     for store in stores:
@@ -178,13 +179,14 @@ def query_availability(cfg):
         for part, pa in (store.get("partsAvailability") or {}).items():
             title = cfg["parts"].get(part) or (
                 pa.get("messageTypes", {}).get("regular", {}).get("storePickupProductTitle")
+                or pa.get("storePickupProductTitle")
                 or part
             )
             result[(part, num)] = {
                 "available": pa.get("pickupDisplay") == "available",
                 "store": store.get("storeName", num),
                 "title": title,
-                "quote": pa.get("pickupSearchQuote", ""),
+                "quote": pa.get("pickupSearchQuote") or pa.get("storePickupQuote", ""),
             }
     return result
 
@@ -270,6 +272,9 @@ def check_once(cfg, last_state, notify=True):
     if not avail:
         log("接口没有返回门店数据（location/stores 可能填错，或 part number 不对）")
         return
+    if not last_state:  # 第一次查询把每家门店的状态都列出来
+        for info in sorted(avail.values(), key=lambda i: i["store"]):
+            log(f"  {'✅' if info['available'] else '❌'} {info['store']} | {info['title']} | {info['quote']}")
     hits = []
     for key, info in sorted(avail.items()):
         was = last_state.get(key, False)

@@ -148,18 +148,20 @@ async function discover(cfg) {
 }
 
 async function queryAvailability(cfg) {
-  const q = ["fae=true", "pl=true", "mts.0=regular", "mts.1=compact"];
+  // 美国站新接口 fulfillment-messages 会返回 541/404，旧接口 retail/pickup-message 实测可用
+  const q = ["pl=true"];
   cfg.parts.forEach((p, i) => q.push(`parts.${i}=${encodeURIComponent(p)}`));
   if (cfg.zip) q.push(`location=${encodeURIComponent(cfg.zip)}`);
   else if (cfg.stores.length) q.push(`store=${encodeURIComponent(cfg.stores[0])}`);
 
   const r = await request("GET", {
-    url: `${cfg.host}/shop/fulfillment-messages?${q.join("&")}`,
+    url: `${cfg.host}/shop/retail/pickup-message?${q.join("&")}`,
     headers: { "User-Agent": UA, Referer: cfg.host + cfg.path, Accept: "application/json" },
   });
   if (r.status !== 200) throw new Error(`Apple 接口返回 HTTP ${r.status}`);
 
-  const stores = JSON.parse(r.body)?.body?.content?.pickupMessage?.stores || [];
+  const body = JSON.parse(r.body)?.body || {};
+  const stores = body.stores || body?.content?.pickupMessage?.stores || [];
   const result = {};
   for (const store of stores) {
     if (cfg.stores.length && !cfg.stores.includes(store.storeNumber)) continue;
@@ -167,8 +169,8 @@ async function queryAvailability(cfg) {
       result[`${part}|${store.storeNumber}`] = {
         available: pa.pickupDisplay === "available",
         store: store.storeName || store.storeNumber,
-        title: pa?.messageTypes?.regular?.storePickupProductTitle || part,
-        quote: pa.pickupSearchQuote || "",
+        title: pa?.messageTypes?.regular?.storePickupProductTitle || pa.storePickupProductTitle || part,
+        quote: pa.pickupSearchQuote || pa.storePickupQuote || "",
       };
     }
   }
