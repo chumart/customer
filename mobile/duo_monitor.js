@@ -19,8 +19,8 @@ const CONFIG = {
   host: "https://www.apple.com",             // 国行 https://www.apple.com.cn
   path: "/shop/buy-iphone/iphone-duo",
   zip: "91748",                              // 美国填邮编；国行填 "上海 上海 黄浦区"
-  // 型号编号，逗号分隔；默认是美国官网购买页上的全部 8 个 iPhone Duo 型号，只想盯某几个就删掉其余的
-  parts: "MK1E4LL/A,MK1F4LL/A,MK1G4LL/A,MK1H4LL/A,MK1J4LL/A,MK1L4LL/A,MK1Q4LL/A,MK1R4LL/A",
+  // 型号编号，逗号分隔。美版全部 8 个：MK1E4LL/A,MK1F4LL/A,MK1G4LL/A,MK1H4LL/A,MK1J4LL/A,MK1L4LL/A,MK1Q4LL/A,MK1R4LL/A
+  parts: "MK1L4LL/A",
   stores: "",                                // 只关注这些门店（如 "R123,R456"），留空=附近全部
 };
 
