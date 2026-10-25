@@ -59,7 +59,10 @@ def http_get(url, referer=None, timeout=15):
 
 
 # 按电脑本地时间（太平洋时间）分时段设置频率：凌晨 0-5 点每 10 分钟查一次，其余时间用 interval_seconds
-DEFAULT_SCHEDULE = [{"from": "00:00", "to": "05:00", "interval_seconds": 600}]
+DEFAULT_SCHEDULE = [
+    {"from": "00:00", "to": "05:00", "interval_seconds": 600},
+    {"from": "07:00", "to": "24:00", "interval_seconds": 300},
+]
 
 
 def first_run_setup(path):
@@ -78,8 +81,8 @@ def first_run_setup(path):
         "parts": {"MK1L4LL/A": ""},
         "interval_seconds": 120,
         "schedule": DEFAULT_SCHEDULE,
-        # 多台电脑轮流查：第 1 台 0（偶数分钟），第 2 台 60（奇数分钟）
-        "offset_seconds": 60 if which == "2" else 0,
+        # 两台电脑轮流查：第 1 台 0，第 2 台 0.5（错开半个间隔）
+        "stagger": 0.5 if which == "2" else 0,
     }
     Path(path).write_text(json.dumps(cfg, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"已保存到 {path}，以后想改邮编或型号就编辑这个文件。")
@@ -400,9 +403,10 @@ def main():
     ok_streak = 0
     slow = 1.0  # 被限流时临时放慢的倍数
     last_rule = None
-    offset = cfg.get("offset_seconds", 0)
-    if offset:
-        log(f"错开 {offset} 秒查询（第 2 台电脑）")
+    # stagger：错开间隔的几分之几（第 2 台 0.5）。兼容旧配置里的 offset_seconds
+    stagger = cfg.get("stagger", 0.5 if cfg.get("offset_seconds") else 0)
+    if stagger:
+        log(f"第 2 台电脑：错开半个间隔查询")
     while True:
         rule = current_rule(cfg)
         if rule is not last_rule:
@@ -442,8 +446,8 @@ def main():
         if failures == 10:
             bark_push(cfg, "iPhone Duo 监控异常", "连续 10 次查询失败，请检查网络或配置")
 
-        # 查询时间对齐到时间槽：时间 ≡ offset_seconds (mod 间隔)。多台电脑填不同的 offset 就会轮流查，
-        # 例如间隔 120 秒时，offset 0 在偶数分钟查，offset 60 在奇数分钟查。
+        # 查询时间对齐到时间槽：时间 ≡ 间隔×stagger (mod 间隔)。两台电脑 stagger 分别为 0 和 0.5 就会均匀轮流，
+        # 例如间隔 300 秒时，第 1 台在 :00 :05 查，第 2 台在 :02:30 :07:30 查。
         # 每 15 秒重新看一次当前时段，跨过 5 点时按新间隔重新对齐。
         last = time.time()
         while True:
@@ -452,7 +456,7 @@ def main():
             iv = interval_of(cfg, cur) * slow
             if failures:  # 失败时指数退避，但不超过 10 分钟（本来就更慢的时段除外）
                 iv = max(iv, min(iv * 2 ** min(failures, 4), 600))
-            target = next_slot(last if cur is rule else now - 20, iv, offset)
+            target = next_slot(last if cur is rule else now - 20, iv, iv * stagger)
             if now >= target:
                 break
             time.sleep(min(target - now, 15))

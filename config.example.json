@@ -18,6 +18,12 @@
       "from": "00:00",
       "to": "05:00",
       "interval_seconds": 600
+    },
+    {
+      "from": "07:00",
+      "to": "24:00",
+      "interval_seconds": 300
     }
-  ]
+  ],
+  "stagger": 0
 }
