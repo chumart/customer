@@ -3,7 +3,16 @@
   "product_path": "/shop/buy-iphone/iphone-duo",
   "location": "91748",
   "stores": [],
-  "parts": {},
+  "parts": {
+    "MK1E4LL/A": "",
+    "MK1F4LL/A": "",
+    "MK1G4LL/A": "",
+    "MK1H4LL/A": "",
+    "MK1J4LL/A": "",
+    "MK1L4LL/A": "",
+    "MK1Q4LL/A": "",
+    "MK1R4LL/A": ""
+  },
   "bark": {
     "level": "timeSensitive",
     "sound": "alarm"
