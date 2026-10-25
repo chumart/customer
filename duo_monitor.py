@@ -56,8 +56,8 @@ def http_get(url, referer=None, timeout=15):
         return resp.read().decode("utf-8", errors="replace")
 
 
-# 按电脑本地时间（太平洋时间）分时段设置频率：凌晨 0-5 点每小时查一次，其余时间用 interval_seconds
-DEFAULT_SCHEDULE = [{"from": "00:00", "to": "05:00", "interval_seconds": 3600}]
+# 按电脑本地时间（太平洋时间）分时段设置频率：凌晨 0-5 点每 10 分钟查一次，其余时间用 interval_seconds
+DEFAULT_SCHEDULE = [{"from": "00:00", "to": "05:00", "interval_seconds": 600}]
 
 
 def first_run_setup(path):
