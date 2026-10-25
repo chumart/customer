@@ -10,6 +10,7 @@
 """
 
 import argparse
+import http.cookiejar
 import json
 import os
 import random
@@ -31,16 +32,26 @@ UA = (
 )
 
 
+# 共用 Cookie：先访问购买页拿到 Apple 下发的 Cookie，库存接口才不容易返回 541
+_opener = urllib.request.build_opener(
+    urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar())
+)
+
+
 def log(msg):
     print(f"[{datetime.now():%Y-%m-%d %H:%M:%S}] {msg}", flush=True)
 
 
 def http_get(url, referer=None, timeout=15):
-    headers = {"User-Agent": UA, "Accept": "application/json, text/html, */*"}
+    headers = {
+        "User-Agent": UA,
+        "Accept": "application/json, text/html, */*",
+        "Accept-Language": "en-US,en;q=0.9,zh-CN;q=0.8",
+    }
     if referer:
         headers["Referer"] = referer
     req = urllib.request.Request(url, headers=headers)
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
+    with _opener.open(req, timeout=timeout) as resp:
         return resp.read().decode("utf-8", errors="replace")
 
 
@@ -131,6 +142,7 @@ def query_availability(cfg):
     elif cfg["stores"]:
         params["store"] = cfg["stores"][0]
     url = cfg["store_host"] + "/shop/fulfillment-messages?" + urllib.parse.urlencode(params)
+    http_get(cfg["store_host"] + cfg["product_path"])  # 先拿 Cookie
     data = json.loads(http_get(url, referer=cfg["store_host"] + cfg["product_path"]))
 
     content = data.get("body", {}).get("content", {})
