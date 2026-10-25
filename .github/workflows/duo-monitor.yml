@@ -1,11 +1,10 @@
 name: iPhone Duo 库存监控
 
 on:
-  schedule:
-    # 私有仓库每月免费 2000 分钟，每次运行按 1 分钟计，每 20 分钟一次刚好够用。
-    # 仓库改成公开后不限额度，可以改成 "*/5 * * * *"（GitHub 允许的最短间隔）。
-    # 高峰期 GitHub 的定时任务可能会延迟几分钟。
-    - cron: "*/20 * * * *"
+  # 定时任务已关闭：Apple 库存接口对 GitHub 服务器 IP 返回 HTTP 541，
+  # 而且 GitHub 的定时任务实际约 2 小时才跑一次。请改用 mobile/ 里的手机后台版。
+  # schedule:
+  #   - cron: "*/20 * * * *"
   workflow_dispatch:
     inputs:
       mode:

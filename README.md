@@ -10,6 +10,9 @@
 
 ## 云端运行（GitHub Actions，不需要电脑，全程手机操作）
 
+> ❌ **已停用**：实测 Apple 库存接口对 GitHub 服务器返回 HTTP 541（按 IP 拦截），而且 GitHub 定时任务实际约 2 小时才跑一次。
+> 定时任务已关闭，请改用上面的手机后台版。下面的步骤仅作保留。
+
 用 GitHub Actions 定时运行，所有操作都可以在手机浏览器里打开 github.com 完成：
 
 1. **填 Bark Key**：仓库 → Settings → Secrets and variables → Actions → New repository secret，

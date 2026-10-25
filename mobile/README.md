@@ -9,9 +9,9 @@
 
 1. 首页 → 模块 → 安装新模块，链接填
    `https://raw.githubusercontent.com/chumart/customer/master/mobile/iphone-duo.sgmodule`
-2. 安装后点模块 → 参数：`BARK_KEY` 填你的 Key，`PARTS` 先留空。
-3. 脚本 → 找到「iPhone Duo 库存」→ 手动运行一次，会收到一条列出所有型号编号的通知（也会推到 Bark）。
-4. 把想要的编号填进 `PARTS`（多个用逗号隔开，美版注意选对运营商版本），之后就会自动监控。
+2. 安装后点模块 → 参数：`BARK_KEY` 填你的 Key，`PARTS` 留空就会监控全部 8 个美版型号。
+3. 脚本 → 找到「iPhone Duo 库存」→ 手动运行一次，在日志里能看到每家门店每个型号的状态。
+4. 只想盯某几个型号，就把编号填进 `PARTS`（多个用逗号隔开）。
 
 ## Loon
 
