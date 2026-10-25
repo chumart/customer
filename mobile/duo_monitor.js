@@ -18,7 +18,8 @@ const CONFIG = {
   level: "timeSensitive",                    // timeSensitive 可突破专注模式；critical 静音也响
   host: "https://www.apple.com",             // 国行 https://www.apple.com.cn
   path: "/shop/buy-iphone/iphone-duo",
-  zip: "91748",                              // 美国填邮编；国行填 "上海 上海 黄浦区"
+  // 美国填邮编，多个用逗号分隔可以查更大范围（Apple 每个邮编只返回最近的十几家店）
+  zip: "91748,90401,91355,93003,92562,92101,92260",
   // 型号编号，逗号分隔。美版全部 8 个：MK1E4LL/A,MK1F4LL/A,MK1G4LL/A,MK1H4LL/A,MK1J4LL/A,MK1L4LL/A,MK1Q4LL/A,MK1R4LL/A
   parts: "MK1L4LL/A",
   stores: "",                                // 只关注这些门店（如 "R123,R456"），留空=附近全部
@@ -151,17 +152,24 @@ async function queryAvailability(cfg) {
   // 美国站新接口 fulfillment-messages 会返回 541/404，旧接口 retail/pickup-message 实测可用
   const q = ["pl=true"];
   cfg.parts.forEach((p, i) => q.push(`parts.${i}=${encodeURIComponent(p)}`));
-  if (cfg.zip) q.push(`location=${encodeURIComponent(cfg.zip)}`);
-  else if (cfg.stores.length) q.push(`store=${encodeURIComponent(cfg.stores[0])}`);
+  const zips = String(cfg.zip || "").split(/[,，;；]/).map((z) => z.trim()).filter(Boolean);
+  const queries = zips.length
+    ? zips.map((z) => `location=${encodeURIComponent(z)}`)
+    : cfg.stores.slice(0, 1).map((s) => `store=${encodeURIComponent(s)}`);
 
-  const r = await request("GET", {
-    url: `${cfg.host}/shop/retail/pickup-message?${q.join("&")}`,
-    headers: { "User-Agent": UA, Referer: cfg.host + cfg.path, Accept: "application/json" },
-  });
-  if (r.status !== 200) throw new Error(`Apple 接口返回 HTTP ${r.status}`);
-
-  const body = JSON.parse(r.body)?.body || {};
-  const stores = body.stores || body?.content?.pickupMessage?.stores || [];
+  const byNum = {};
+  for (const extra of queries) {
+    const r = await request("GET", {
+      url: `${cfg.host}/shop/retail/pickup-message?${[...q, extra].join("&")}`,
+      headers: { "User-Agent": UA, Referer: cfg.host + cfg.path, Accept: "application/json" },
+    });
+    if (r.status !== 200) throw new Error(`Apple 接口返回 HTTP ${r.status}`);
+    const body = JSON.parse(r.body)?.body || {};
+    for (const st of body.stores || body?.content?.pickupMessage?.stores || []) {
+      if (!byNum[st.storeNumber]) byNum[st.storeNumber] = st;
+    }
+  }
+  const stores = Object.values(byNum);
   const result = {};
   for (const store of stores) {
     if (cfg.stores.length && !cfg.stores.includes(store.storeNumber)) continue;

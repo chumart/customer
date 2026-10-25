@@ -4,7 +4,7 @@
 [Argument]
 BARK_KEY = input,"",tag=Bark Key,desc=Bark App 里的设备 Key
 PARTS = input,"",tag=型号编号,desc=逗号分隔；留空则推送型号编号列表
-ZIP = input,"91748",tag=邮编,desc=美国邮编；国行填"上海 上海 黄浦区"
+ZIP = input,"91748,90401,91355,93003,92562,92101,92260",tag=邮编,desc=美国邮编，多个用逗号分隔可查更大范围
 STORES = input,"",tag=门店编号,desc=只看这些门店，逗号分隔；留空=附近全部
 
 [Script]

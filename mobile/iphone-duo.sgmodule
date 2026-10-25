@@ -1,6 +1,6 @@
 #!name=iPhone Duo 库存监控
 #!desc=定时检查附近 Apple Store 的 iPhone Duo 门店取货库存，有货时用 Bark 推送。PARTS 留空时会把所有型号编号推送给你。
-#!arguments=BARK_KEY:,PARTS:,ZIP:91748,STORES:,CRON:*/2 * * * *
+#!arguments=BARK_KEY:,PARTS:,ZIP:91748;90401;91355;93003;92562;92101;92260,STORES:,CRON:*/2 * * * *
 #!arguments-desc=BARK_KEY：Bark 设备 Key\nPARTS：型号编号，逗号分隔；留空=推送型号编号列表\nZIP：邮编\nSTORES：只看这些门店编号，逗号分隔，留空=附近全部\nCRON：检查频率，默认每 2 分钟
 
 [Script]

@@ -66,7 +66,7 @@ def first_run_setup(path):
         "bark": {"key": key},
         "store_host": "https://www.apple.com",
         "product_path": "/shop/buy-iphone/iphone-duo",
-        "location": "91748",
+        "location": "91748,90401,91355,93003,92562,92101,92260",
         "stores": [],
         "parts": {"MK1L4LL/A": ""},
         "interval_seconds": 60,
@@ -159,17 +159,24 @@ def query_availability(cfg):
     params = {"pl": "true"}
     for i, part in enumerate(cfg["parts"]):
         params[f"parts.{i}"] = part
-    if cfg.get("location"):
-        params["location"] = cfg["location"]
-    elif cfg["stores"]:
-        params["store"] = cfg["stores"][0]
-    url = cfg["store_host"] + "/shop/retail/pickup-message?" + urllib.parse.urlencode(params)
+    # Apple 每次只返回离 location 最近的十几家店；填多个邮编（逗号分隔）可以覆盖更大范围
+    loc = cfg.get("location") or ""
+    locations = loc if isinstance(loc, list) else re.split(r"[,，;；]", loc)
+    locations = [l.strip() for l in locations if str(l).strip()]
+    queries = [{"location": l} for l in locations] or [{"store": s} for s in cfg["stores"][:1]]
     if not _cookies:
         http_get(cfg["store_host"] + cfg["product_path"])  # 先拿 Cookie
-    data = json.loads(http_get(url, referer=cfg["store_host"] + cfg["product_path"]))
 
-    body = data.get("body", {})
-    stores = body.get("stores") or body.get("content", {}).get("pickupMessage", {}).get("stores", [])
+    stores_by_num = {}
+    for i, extra in enumerate(queries):
+        if i:
+            time.sleep(1)
+        url = cfg["store_host"] + "/shop/retail/pickup-message?" + urllib.parse.urlencode({**params, **extra})
+        data = json.loads(http_get(url, referer=cfg["store_host"] + cfg["product_path"]))
+        body = data.get("body", {})
+        for st in body.get("stores") or body.get("content", {}).get("pickupMessage", {}).get("stores", []):
+            stores_by_num.setdefault(st.get("storeNumber"), st)
+    stores = list(stores_by_num.values())
     wanted_stores = set(cfg["stores"])
     result = {}
     for store in stores:
