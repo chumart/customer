@@ -66,7 +66,7 @@ def first_run_setup(path):
         "bark": {"key": key},
         "store_host": "https://www.apple.com",
         "product_path": "/shop/buy-iphone/iphone-duo",
-        "location": "91748,90401,91355,93003,92562,92101,92260",
+        "location": "91748",
         "stores": [],
         "parts": {"MK1L4LL/A": ""},
         "interval_seconds": 60,

@@ -19,7 +19,7 @@ const CONFIG = {
   host: "https://www.apple.com",             // 国行 https://www.apple.com.cn
   path: "/shop/buy-iphone/iphone-duo",
   // 美国填邮编，多个用逗号分隔可以查更大范围（Apple 每个邮编只返回最近的十几家店）
-  zip: "91748,90401,91355,93003,92562,92101,92260",
+  zip: "91748",
   // 型号编号，逗号分隔。美版全部 8 个：MK1E4LL/A,MK1F4LL/A,MK1G4LL/A,MK1H4LL/A,MK1J4LL/A,MK1L4LL/A,MK1Q4LL/A,MK1R4LL/A
   parts: "MK1L4LL/A",
   stores: "",                                // 只关注这些门店（如 "R123,R456"），留空=附近全部
