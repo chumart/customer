@@ -73,7 +73,7 @@ def first_run_setup(path):
         "location": "91748",
         "stores": [],
         "parts": {"MK1L4LL/A": ""},
-        "interval_seconds": 60,
+        "interval_seconds": 120,
         "schedule": DEFAULT_SCHEDULE,
     }
     Path(path).write_text(json.dumps(cfg, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -86,7 +86,7 @@ def load_config(path, require_parts=True):
         cfg = json.load(f)
     cfg.setdefault("store_host", "https://www.apple.com.cn")
     cfg.setdefault("product_path", "/shop/buy-iphone/iphone-duo")
-    cfg.setdefault("interval_seconds", 60)
+    cfg.setdefault("interval_seconds", 120)
     cfg.setdefault("schedule", DEFAULT_SCHEDULE)
     cfg.setdefault("stores", [])
     cfg.setdefault("bark", {})

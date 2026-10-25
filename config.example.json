@@ -12,7 +12,7 @@
   "parts": {
     "MXXXXLL/A": "iPhone Duo 512GB 示例颜色（用 --discover 得到真实 part number 后替换）"
   },
-  "interval_seconds": 60,
+  "interval_seconds": 120,
   "schedule": [
     {
       "from": "00:00",
