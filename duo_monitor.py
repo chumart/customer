@@ -14,6 +14,8 @@ import http.cookiejar
 import json
 import os
 import random
+import shutil
+import subprocess
 import re
 import sys
 import time
@@ -187,6 +189,80 @@ def query_availability(cfg):
     return result
 
 
+# ---------------------------------------------------------------- 诊断
+
+BROWSER_HEADERS = {
+    "Accept": "*/*",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Sec-Fetch-Site": "same-origin",
+    "Sec-Fetch-Mode": "cors",
+    "Sec-Fetch-Dest": "empty",
+    "x-aos-ui-fetch-call-1": "x",
+    "x-skip-redirect": "true",
+}
+
+
+def diagnose(cfg):
+    """用几种请求方式各试一次库存接口，打印哪种能拿到数据。"""
+    host, page = cfg["store_host"], cfg["store_host"] + cfg["product_path"]
+    part = next(iter(cfg["parts"]))
+    loc = urllib.parse.quote(cfg.get("location") or "")
+    pq = urllib.parse.quote(part)
+    urls = {
+        "A 现在的参数": f"{host}/shop/fulfillment-messages?fae=true&pl=true&mts.0=regular&mts.1=compact&parts.0={pq}&location={loc}",
+        "B 精简参数": f"{host}/shop/fulfillment-messages?pl=true&mts.0=regular&parts.0={pq}&location={loc}",
+        "C searchNearby": f"{host}/shop/fulfillment-messages?searchNearby=true&parts.0={pq}&location={loc}",
+        "D 旧接口": f"{host}/shop/retail/pickup-message?pl=true&parts.0={pq}&location={loc}",
+    }
+
+    def py_get(url, extra):
+        jar = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+        try:
+            jar.open(urllib.request.Request(page, headers={"User-Agent": UA}), timeout=15).read()
+            req = urllib.request.Request(url, headers={"User-Agent": UA, "Referer": page, **extra})
+            with jar.open(req, timeout=15) as r:
+                return r.status, r.read().decode("utf-8", "replace")
+        except urllib.error.HTTPError as e:
+            return e.code, e.read().decode("utf-8", "replace")
+        except Exception as e:
+            return "ERR", str(e)
+
+    curl = shutil.which("curl")
+
+    def curl_get(url):
+        cookie = str(HERE / ".diag_cookies.txt")
+        base = [curl, "-sS", "-m", "15", "-c", cookie, "-b", cookie, "-A", UA]
+        try:
+            subprocess.run(base + ["-o", os.devnull, page], capture_output=True, timeout=20)
+            hdrs = sum((["-H", f"{k}: {v}"] for k, v in BROWSER_HEADERS.items()), [])
+            out = subprocess.run(
+                base + hdrs + ["-e", page, "-w", "\n%{http_code}", url],
+                capture_output=True, timeout=20,
+            ).stdout.decode("utf-8", "replace")
+            body, _, code = out.rpartition("\n")
+            return code, body
+        except Exception as e:
+            return "ERR", str(e)
+
+    print(f"诊断型号 {part}，位置 {cfg.get('location')}")
+    for name, url in urls.items():
+        clients = [("Python", lambda u=url: py_get(u, {})),
+                   ("Python+浏览器头", lambda u=url: py_get(u, BROWSER_HEADERS))]
+        if curl:
+            clients.append(("curl", lambda u=url: curl_get(u)))
+        for cname, fn in clients:
+            code, body = fn()
+            ok = "✅" if str(code) == "200" and "{" in body[:5] else "❌"
+            snippet = " ".join(body[:100].split())
+            print(f"{ok} {name} | {cname} | HTTP {code} | {snippet}")
+            time.sleep(1)
+    try:
+        os.remove(HERE / ".diag_cookies.txt")
+    except OSError:
+        pass
+    print("诊断完成，请把上面的结果截图发回来。")
+
+
 # ---------------------------------------------------------------- main loop
 
 def check_once(cfg, last_state, notify=True):
@@ -222,6 +298,7 @@ def main():
     ap.add_argument("--once", action="store_true", help="只查一次，打印全部结果")
     ap.add_argument("--discover", action="store_true", help="列出购买页里的 part number")
     ap.add_argument("--test-bark", action="store_true", help="发送测试推送")
+    ap.add_argument("--diagnose", action="store_true", help="用几种方式试库存接口，排查 HTTP 541")
     ap.add_argument("--state", help="单次检查并推送新到货，状态存到该文件（给定时任务用）")
     args = ap.parse_args()
 
@@ -243,6 +320,10 @@ def main():
             log("测试推送已发送，手机应该收到通知了")
     else:
         cfg = load_config(args.config, require_parts=not (args.state or args.test_bark))
+
+    if args.diagnose:
+        diagnose(cfg)
+        return
 
     if args.test_bark:
         ok = bark_push(cfg, "iPhone Duo 监控", "测试推送：Bark 配置正常 ✅")
