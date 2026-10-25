@@ -56,6 +56,10 @@ def http_get(url, referer=None, timeout=15):
         return resp.read().decode("utf-8", errors="replace")
 
 
+# 按电脑本地时间（太平洋时间）分时段设置频率：凌晨 0-5 点每小时查一次，其余时间用 interval_seconds
+DEFAULT_SCHEDULE = [{"from": "00:00", "to": "05:00", "interval_seconds": 3600}]
+
+
 def first_run_setup(path):
     """没有配置文件时，问一下 Bark Key，按默认设置（美国 91748、MK1L4LL/A）生成 config.json。"""
     print("第一次运行，先做一下设置。")
@@ -69,7 +73,8 @@ def first_run_setup(path):
         "location": "91748",
         "stores": [],
         "parts": {"MK1L4LL/A": ""},
-        "interval_seconds": 120,
+        "interval_seconds": 60,
+        "schedule": DEFAULT_SCHEDULE,
     }
     Path(path).write_text(json.dumps(cfg, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"已保存到 {path}，以后想改邮编或型号就编辑这个文件。")
@@ -81,7 +86,8 @@ def load_config(path, require_parts=True):
         cfg = json.load(f)
     cfg.setdefault("store_host", "https://www.apple.com.cn")
     cfg.setdefault("product_path", "/shop/buy-iphone/iphone-duo")
-    cfg.setdefault("interval_seconds", 120)
+    cfg.setdefault("interval_seconds", 60)
+    cfg.setdefault("schedule", DEFAULT_SCHEDULE)
     cfg.setdefault("stores", [])
     cfg.setdefault("bark", {})
     cfg["bark"].setdefault("server", "https://api.day.app")
@@ -364,31 +370,78 @@ def main():
             print(f"{mark} {info['store']} | {info['title']} | {info['quote']}")
         return
 
-    log(f"开始监控 {len(cfg['parts'])} 个型号，间隔约 {cfg['interval_seconds']} 秒")
+    log(f"开始监控 {len(cfg['parts'])} 个型号，平时约 {cfg['interval_seconds']} 秒查一次")
+    for r in cfg["schedule"]:
+        log(f"  {r['from']}-{r['to']} 约 {r['interval_seconds']} 秒查一次")
     last_state = {}
     failures = 0
-    interval = cfg["interval_seconds"]
+    ok_streak = 0
+    slow = 1.0  # 被限流时临时放慢的倍数
+    last_rule = None
     while True:
+        rule = current_rule(cfg)
+        if rule is not last_rule:
+            if last_rule is not None and rule is None:
+                bark_push(cfg, "iPhone Duo 监控运行中", f"开始每 {cfg['interval_seconds']} 秒检查一次库存")
+            log("进入" + (f" {rule['from']}-{rule['to']} 时段" if rule else "常规时段")
+                + f"，约 {interval_of(cfg, rule)} 秒查一次")
+            last_rule = rule
         try:
             check_once(cfg, last_state)
             failures = 0
+            ok_streak += 1
+            if slow > 1 and ok_streak >= 30:
+                slow = 1.0
+                log("连续正常 30 次，恢复原来的查询频率")
         except urllib.error.HTTPError as e:
             failures += 1
+            ok_streak = 0
             if e.code in (403, 429, 541):
-                # 被限流：换新 Cookie，并永久放慢正常查询频率（最慢 5 分钟一次）
+                # 被限流：换新 Cookie，临时放慢（最多 5 倍），连续正常 30 次后恢复
                 _cookies.clear()
-                interval = min(interval * 1.5, 300)
-                log(f"HTTP {e.code}（被限流），第 {failures} 次失败，之后改为约 {int(interval)} 秒查一次")
+                slow = min(slow * 1.5, 5)
+                log(f"HTTP {e.code}（被限流），第 {failures} 次失败，暂时放慢到约 "
+                    f"{int(interval_of(cfg, rule) * slow)} 秒查一次")
             else:
                 log(f"HTTP {e.code}，第 {failures} 次失败")
         except (urllib.error.URLError, TimeoutError, ValueError) as e:
             failures += 1
+            ok_streak = 0
             log(f"请求失败: {e}，第 {failures} 次失败")
         if failures == 10:
             bark_push(cfg, "iPhone Duo 监控异常", "连续 10 次查询失败，请检查网络或配置")
-        # 失败时指数退避，最长 10 分钟；正常时加随机抖动避免固定频率
-        base = interval * (2 ** min(failures, 4))
-        time.sleep(min(base, 600) * random.uniform(0.8, 1.2))
+
+        # 分段睡眠：每 15 秒重新看一次当前时段，跨过 5 点时能马上切到高频
+        jitter = random.uniform(0.8, 1.2)
+        start = time.monotonic()
+        while True:
+            iv = interval_of(cfg, current_rule(cfg)) * slow
+            if failures:  # 失败时指数退避，但不超过 10 分钟（本来就更慢的时段除外）
+                iv = max(iv, min(iv * 2 ** min(failures, 4), 600))
+            left = iv * jitter - (time.monotonic() - start)
+            if left <= 0:
+                break
+            time.sleep(min(left, 15))
+
+
+def _minutes(hhmm):
+    h, m = hhmm.split(":")
+    return int(h) * 60 + int(m)
+
+
+def current_rule(cfg):
+    """返回当前时间命中的时段规则，没命中返回 None（用 interval_seconds）。"""
+    now = datetime.now()
+    cur = now.hour * 60 + now.minute
+    for r in cfg["schedule"]:
+        a, b = _minutes(r["from"]), _minutes(r["to"])
+        if (a <= cur < b) if a <= b else (cur >= a or cur < b):
+            return r
+    return None
+
+
+def interval_of(cfg, rule):
+    return rule["interval_seconds"] if rule else cfg["interval_seconds"]
 
 
 if __name__ == "__main__":
