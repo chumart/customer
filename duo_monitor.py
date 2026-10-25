@@ -12,6 +12,7 @@
 import argparse
 import http.cookiejar
 import json
+import math
 import os
 import random
 import shutil
@@ -67,6 +68,7 @@ def first_run_setup(path):
     raw = input("粘贴你的 Bark Key（或 Bark App 里那整段 https://api.day.app/... 链接）：").strip()
     m = re.search(r"api\.day\.app/([A-Za-z0-9]+)", raw)
     key = m.group(1) if m else raw.strip("/ ")
+    which = input("这是第几台电脑？只有一台或这是第 1 台直接回车，第 2 台输入 2：").strip()
     cfg = {
         "bark": {"key": key},
         "store_host": "https://www.apple.com",
@@ -76,6 +78,8 @@ def first_run_setup(path):
         "parts": {"MK1L4LL/A": ""},
         "interval_seconds": 120,
         "schedule": DEFAULT_SCHEDULE,
+        # 多台电脑轮流查：第 1 台 0（偶数分钟），第 2 台 60（奇数分钟）
+        "offset_seconds": 60 if which == "2" else 0,
     }
     Path(path).write_text(json.dumps(cfg, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"已保存到 {path}，以后想改邮编或型号就编辑这个文件。")
@@ -321,6 +325,7 @@ def main():
     ap.add_argument("--window", metavar="HH:MM-HH:MM",
                     help="等到开始时间，在时间窗内按 --every 秒循环检查，结束后退出（给云端用）")
     ap.add_argument("--every", type=int, default=60, help="--window 模式的检查间隔（秒）")
+    ap.add_argument("--offset", type=int, default=0, help="--window 模式错开的秒数（和电脑轮流查）")
     ap.add_argument("--tz", default="America/Los_Angeles", help="--window 使用的时区")
     ap.add_argument("--state", help="单次检查并推送新到货，状态存到该文件（给定时任务用）")
     args = ap.parse_args()
@@ -345,7 +350,7 @@ def main():
         cfg = load_config(args.config, require_parts=not (args.state or args.test_bark))
 
     if args.window:
-        run_window(cfg, args.window, args.every, args.tz)
+        run_window(cfg, args.window, args.every, args.tz, args.offset)
         return
 
     if args.diagnose:
@@ -395,6 +400,9 @@ def main():
     ok_streak = 0
     slow = 1.0  # 被限流时临时放慢的倍数
     last_rule = None
+    offset = cfg.get("offset_seconds", 0)
+    if offset:
+        log(f"错开 {offset} 秒查询（第 2 台电脑）")
     while True:
         rule = current_rule(cfg)
         if rule is not last_rule:
@@ -434,22 +442,24 @@ def main():
         if failures == 10:
             bark_push(cfg, "iPhone Duo 监控异常", "连续 10 次查询失败，请检查网络或配置")
 
-        # 分段睡眠：每 15 秒重新看一次当前时段，跨过 5 点时能马上切到高频
-        jitter = random.uniform(0.8, 1.2)
-        start = time.monotonic()
+        # 查询时间对齐到时间槽：时间 ≡ offset_seconds (mod 间隔)。多台电脑填不同的 offset 就会轮流查，
+        # 例如间隔 120 秒时，offset 0 在偶数分钟查，offset 60 在奇数分钟查。
+        # 每 15 秒重新看一次当前时段，跨过 5 点时按新间隔重新对齐。
+        last = time.time()
         while True:
-            if current_rule(cfg) is not rule:  # 跨过时段边界（如 5:00）立刻查
-                break
-            iv = interval_of(cfg, rule) * slow
+            now = time.time()
+            cur = current_rule(cfg)
+            iv = interval_of(cfg, cur) * slow
             if failures:  # 失败时指数退避，但不超过 10 分钟（本来就更慢的时段除外）
                 iv = max(iv, min(iv * 2 ** min(failures, 4), 600))
-            left = iv * jitter - (time.monotonic() - start)
-            if left <= 0:
+            target = next_slot(last if cur is rule else now - 20, iv, offset)
+            if now >= target:
                 break
-            time.sleep(min(left, 15))
+            time.sleep(min(target - now, 15))
+        time.sleep(random.uniform(0, 3))  # 加一点随机，避免每次都卡在整秒
 
 
-def run_window(cfg, window, every, tz_name):
+def run_window(cfg, window, every, tz_name, offset=0):
     """等到时间窗开始，每 every 秒检查一次，时间窗结束后退出。"""
     from zoneinfo import ZoneInfo
 
@@ -467,7 +477,6 @@ def run_window(cfg, window, every, tz_name):
     log(f"开始检查，每 {every} 秒一次，到 {end_s} 结束")
     last_state, failures = {}, 0
     while datetime.now(tz) < end:
-        t0 = time.monotonic()
         try:
             check_once(cfg, last_state)
             failures = 0
@@ -478,11 +487,16 @@ def run_window(cfg, window, every, tz_name):
         except (urllib.error.URLError, TimeoutError, ValueError) as e:
             failures += 1
             log(f"请求失败: {e}，第 {failures} 次失败")
-        wait = every * (2 ** min(failures, 3)) - (time.monotonic() - t0)
+        wait = next_slot(time.time(), every * (2 ** min(failures, 3)), offset) - time.time()
         remaining = (end - datetime.now(tz)).total_seconds()
         if wait > 0 and remaining > 0:
             time.sleep(min(wait, remaining))
     log("时间窗结束")
+
+
+def next_slot(after, interval, offset):
+    """after 之后第一个满足 (t - offset) % interval == 0 的时间点。"""
+    return offset + (math.floor((after - offset) / interval) + 1) * interval
 
 
 def _minutes(hhmm):

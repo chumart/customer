@@ -57,6 +57,7 @@ GitHub 每天凌晨 2-4 点（太平洋时间）提前启动任务，任务里�
 | `stores` | 只关注指定门店（如 `["R389"]`），留空表示 location 附近的所有门店；`--once` 的输出里能看到门店名 |
 | `parts` | 要监控的型号 part number |
 | `interval_seconds` | 常规时段的轮询间隔，默认 120 秒；被 Apple 限流（HTTP 541）时会临时放慢，连续正常 30 次后恢复 |
+| `offset_seconds` | 多台电脑轮流查：第 1 台 `0`（偶数分钟），第 2 台 `60`（奇数分钟）；第一次运行时会问 |
 | `schedule` | 分时段频率，按电脑本地时间。默认 `00:00-05:00` 每 600 秒一次，5 点切回常规频率时 Bark 推送「监控运行中」 |
 | `bark.level` | `timeSensitive` 能突破专注模式；改成 `critical` 静音时也会响 |
 | `bark.server` | 自建 Bark 服务端时填写 |
