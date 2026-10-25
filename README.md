@@ -13,6 +13,10 @@
 
 窗口要一直开着，电脑别休眠。以后要改邮编或型号，编辑自动生成的 `config.json`。
 
+**自动启动（推荐）**：双击 `install-autostart-windows.bat`，之后每天 4:50 和登录电脑时会自动启动监控（必要时唤醒电脑）；
+监控已经在运行时，新启动的会自动退出，不会重复查询。取消用 `uninstall-autostart-windows.bat`。
+夜里被 Apple 限流也没关系：一到 5:00 会清掉限流状态，准时开始每 2 分钟查一次。
+
 ## iPhone 后台运行（Surge / Loon / Quantumult X / 小火箭）
 
 见 [mobile/README.md](mobile/README.md)。

@@ -15,6 +15,7 @@ import json
 import os
 import random
 import shutil
+import socket
 import subprocess
 import re
 import sys
@@ -378,6 +379,14 @@ def main():
             print(f"{mark} {info['store']} | {info['title']} | {info['quote']}")
         return
 
+    # 只允许一个监控在跑：计划任务重复启动时，新开的直接退出
+    global _instance_lock
+    _instance_lock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        _instance_lock.bind(("127.0.0.1", 47391))
+    except OSError:
+        log("监控已经在运行了，这个窗口不用再开")
+        return
     log(f"开始监控 {len(cfg['parts'])} 个型号，平时约 {cfg['interval_seconds']} 秒查一次")
     for r in cfg["schedule"]:
         log(f"  {r['from']}-{r['to']} 约 {r['interval_seconds']} 秒查一次")
@@ -390,6 +399,9 @@ def main():
         rule = current_rule(cfg)
         if rule is not last_rule:
             if last_rule is not None and rule is None:
+                # 进入常规时段（如早上 5 点）：清掉夜里积累的限流放慢和失败计数，换新 Cookie，马上查
+                slow, failures, ok_streak = 1.0, 0, 0
+                _cookies.clear()
                 bark_push(cfg, "iPhone Duo 监控运行中", f"开始每 {cfg['interval_seconds']} 秒检查一次库存")
             log("进入" + (f" {rule['from']}-{rule['to']} 时段" if rule else "常规时段")
                 + f"，约 {interval_of(cfg, rule)} 秒查一次")
@@ -405,11 +417,14 @@ def main():
             failures += 1
             ok_streak = 0
             if e.code in (403, 429, 541):
-                # 被限流：换新 Cookie，临时放慢（最多 5 倍），连续正常 30 次后恢复
+                # 被限流：换新 Cookie；常规时段临时放慢（最多 5 倍），连续正常 30 次后恢复。
+                # 夜间时段本来就慢，不再叠加放慢
                 _cookies.clear()
-                slow = min(slow * 1.5, 5)
-                log(f"HTTP {e.code}（被限流），第 {failures} 次失败，暂时放慢到约 "
-                    f"{int(interval_of(cfg, rule) * slow)} 秒查一次")
+                if rule is None:
+                    slow = min(slow * 1.5, 5)
+                log(f"HTTP {e.code}（被限流），第 {failures} 次失败，"
+                    + (f"暂时放慢到约 {int(interval_of(cfg, rule) * slow)} 秒查一次" if rule is None
+                       else "夜间时段保持原频率，到常规时段会自动重置"))
             else:
                 log(f"HTTP {e.code}，第 {failures} 次失败")
         except (urllib.error.URLError, TimeoutError, ValueError) as e:
@@ -423,7 +438,9 @@ def main():
         jitter = random.uniform(0.8, 1.2)
         start = time.monotonic()
         while True:
-            iv = interval_of(cfg, current_rule(cfg)) * slow
+            if current_rule(cfg) is not rule:  # 跨过时段边界（如 5:00）立刻查
+                break
+            iv = interval_of(cfg, rule) * slow
             if failures:  # 失败时指数退避，但不超过 10 分钟（本来就更慢的时段除外）
                 iv = max(iv, min(iv * 2 ** min(failures, 4), 600))
             left = iv * jitter - (time.monotonic() - start)
