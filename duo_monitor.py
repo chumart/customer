@@ -317,6 +317,10 @@ def main():
     ap.add_argument("--discover", action="store_true", help="列出购买页里的 part number")
     ap.add_argument("--test-bark", action="store_true", help="发送测试推送")
     ap.add_argument("--diagnose", action="store_true", help="用几种方式试库存接口，排查 HTTP 541")
+    ap.add_argument("--window", metavar="HH:MM-HH:MM",
+                    help="等到开始时间，在时间窗内按 --every 秒循环检查，结束后退出（给云端用）")
+    ap.add_argument("--every", type=int, default=60, help="--window 模式的检查间隔（秒）")
+    ap.add_argument("--tz", default="America/Los_Angeles", help="--window 使用的时区")
     ap.add_argument("--state", help="单次检查并推送新到货，状态存到该文件（给定时任务用）")
     args = ap.parse_args()
 
@@ -338,6 +342,10 @@ def main():
             log("测试推送已发送，手机应该收到通知了")
     else:
         cfg = load_config(args.config, require_parts=not (args.state or args.test_bark))
+
+    if args.window:
+        run_window(cfg, args.window, args.every, args.tz)
+        return
 
     if args.diagnose:
         diagnose(cfg)
@@ -422,6 +430,42 @@ def main():
             if left <= 0:
                 break
             time.sleep(min(left, 15))
+
+
+def run_window(cfg, window, every, tz_name):
+    """等到时间窗开始，每 every 秒检查一次，时间窗结束后退出。"""
+    from zoneinfo import ZoneInfo
+
+    tz = ZoneInfo(tz_name)
+    start_s, end_s = window.split("-")
+    now = datetime.now(tz)
+    start = now.replace(hour=int(start_s[:2]), minute=int(start_s[3:]), second=0, microsecond=0)
+    end = now.replace(hour=int(end_s[:2]), minute=int(end_s[3:]), second=0, microsecond=0)
+    if now >= end:
+        log(f"现在 {now:%H:%M} 已过 {end_s}（{tz_name}），今天的时间窗结束了")
+        return
+    if now < start:
+        log(f"现在 {now:%H:%M}（{tz_name}），等到 {start_s} 开始检查")
+        time.sleep((start - now).total_seconds())
+    log(f"开始检查，每 {every} 秒一次，到 {end_s} 结束")
+    last_state, failures = {}, 0
+    while datetime.now(tz) < end:
+        t0 = time.monotonic()
+        try:
+            check_once(cfg, last_state)
+            failures = 0
+        except urllib.error.HTTPError as e:
+            failures += 1
+            _cookies.clear()
+            log(f"HTTP {e.code}，第 {failures} 次失败")
+        except (urllib.error.URLError, TimeoutError, ValueError) as e:
+            failures += 1
+            log(f"请求失败: {e}，第 {failures} 次失败")
+        wait = every * (2 ** min(failures, 3)) - (time.monotonic() - t0)
+        remaining = (end - datetime.now(tz)).total_seconds()
+        if wait > 0 and remaining > 0:
+            time.sleep(min(wait, remaining))
+    log("时间窗结束")
 
 
 def _minutes(hhmm):

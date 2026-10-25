@@ -17,27 +17,15 @@
 
 见 [mobile/README.md](mobile/README.md)。
 
-## 云端运行（GitHub Actions，不需要电脑，全程手机操作）
+## 云端运行：每天 5:00-6:00 每分钟查一次（GitHub Actions）
 
-> ❌ **已停用**：实测 Apple 库存接口对 GitHub 服务器返回 HTTP 541（按 IP 拦截），而且 GitHub 定时任务实际约 2 小时才跑一次。
-> 定时任务已关闭，请改用上面的手机后台版。下面的步骤仅作保留。
+GitHub 每天凌晨 2-4 点（太平洋时间）提前启动任务，任务里等到 5:00 开始每分钟查一次，6:00 结束。
+用的是 GitHub 的 IP，和家里电脑互不影响限流，两边可以同时跑。
 
-用 GitHub Actions 定时运行，所有操作都可以在手机浏览器里打开 github.com 完成：
+只需要设置一次：仓库 → Settings → Secrets and variables → Actions → New repository secret，
+名称 `BARK_KEY`，值填 Bark Key。型号和邮编在 `config.cloud.json` 里改。
 
-1. **填 Bark Key**：仓库 → Settings → Secrets and variables → Actions → New repository secret，
-   名称填 `BARK_KEY`，值填 Bark App 里的设备 Key。
-2. **测试推送**：仓库 → Actions → 「iPhone Duo 库存监控」→ Run workflow，模式选 `test-bark`，手机应该能收到通知。
-3. **查型号编号**：同样 Run workflow，模式选 `discover`，运行完点进日志就能看到所有 part number。
-4. **填配置**：在网页上编辑 `config.cloud.json`，把想要的型号填进 `parts`，例如
-   `"parts": {"MABC1LL/A": "256G 黑色 无锁版"}`，然后 commit。
-   `location` 默认是邮编 91748，可以按需修改。
-5. **确认结果**：Run workflow 选 `once`，在日志里查看附近每家门店的当前状态。
-
-之后就会每 20 分钟自动检查一次，有新到货时推送。私有仓库每月免费额度只有 2000 分钟，每 20 分钟一次刚好用得完；
-把仓库改成公开（Key 存在 Secrets 里，不会泄露）后不限额度，可以把 `.github/workflows/duo-monitor.yml`
-里的 cron 改成 `*/5 * * * *`。不想监控了就在 Actions 页面点「Disable workflow」。
-
-> 注意：Apple 有时会拦截来自数据中心 IP 的请求。如果日志里一直是 HTTP 403/541，说明 GitHub 的服务器被挡了，需要换别的运行方式。
+手动测试：Actions → 「iPhone Duo 库存监控」→ Run workflow，选 `test-bark` 测推送，选 `once` 看当前库存。
 
 ## 在电脑上运行
 

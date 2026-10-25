@@ -1,17 +1,21 @@
 name: iPhone Duo 库存监控
 
 on:
-  # 定时任务已关闭：Apple 库存接口对 GitHub 服务器 IP 返回 HTTP 541，
-  # 而且 GitHub 的定时任务实际约 2 小时才跑一次。请改用 mobile/ 里的手机后台版。
-  # schedule:
-  #   - cron: "*/20 * * * *"
+  # 每天盯太平洋时间 5:00-6:00 的补货：GitHub 定时任务经常晚一两个小时才启动，
+  # 所以提前几次启动（UTC 时间，对应太平洋时间凌晨 2-4 点），任务里自己等到 5:00 再开始，
+  # 每分钟查一次，6:00 结束。同一时间只跑一个，晚到的那次发现时间窗已结束会直接退出。
+  schedule:
+    - cron: "0 10 * * *"
+    - cron: "0 11 * * *"
+    - cron: "40 11 * * *"
   workflow_dispatch:
     inputs:
       mode:
         description: "运行模式"
         type: choice
-        default: check
+        default: window
         options:
+          - window     # 等到 5:00（太平洋时间），每分钟查一次到 6:00
           - check      # 检查库存，新到货就推送
           - once       # 打印所有门店×型号的当前状态
           - discover   # 列出购买页里的所有 part number
@@ -24,7 +28,7 @@ concurrency:
 jobs:
   monitor:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 300
     steps:
       - uses: actions/checkout@v4
 
@@ -42,9 +46,10 @@ jobs:
       - name: Run
         env:
           BARK_KEY: ${{ secrets.BARK_KEY }}
-          MODE: ${{ inputs.mode || 'check' }}
+          MODE: ${{ inputs.mode || 'window' }}
         run: |
           case "$MODE" in
+            window)    python3 duo_monitor.py -c config.cloud.json --window 05:00-06:00 --every 60 ;;
             check)     python3 duo_monitor.py -c config.cloud.json --state state.json ;;
             once)      python3 duo_monitor.py -c config.cloud.json --once ;;
             discover)  python3 duo_monitor.py -c config.cloud.json --discover ;;
