@@ -69,7 +69,7 @@ def first_run_setup(path):
         "location": "91748",
         "stores": [],
         "parts": {"MK1L4LL/A": ""},
-        "interval_seconds": 60,
+        "interval_seconds": 120,
     }
     Path(path).write_text(json.dumps(cfg, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"已保存到 {path}，以后想改邮编或型号就编辑这个文件。")
@@ -81,7 +81,7 @@ def load_config(path, require_parts=True):
         cfg = json.load(f)
     cfg.setdefault("store_host", "https://www.apple.com.cn")
     cfg.setdefault("product_path", "/shop/buy-iphone/iphone-duo")
-    cfg.setdefault("interval_seconds", 60)
+    cfg.setdefault("interval_seconds", 120)
     cfg.setdefault("stores", [])
     cfg.setdefault("bark", {})
     cfg["bark"].setdefault("server", "https://api.day.app")
@@ -367,20 +367,27 @@ def main():
     log(f"开始监控 {len(cfg['parts'])} 个型号，间隔约 {cfg['interval_seconds']} 秒")
     last_state = {}
     failures = 0
+    interval = cfg["interval_seconds"]
     while True:
         try:
             check_once(cfg, last_state)
             failures = 0
         except urllib.error.HTTPError as e:
             failures += 1
-            log(f"HTTP {e.code}（可能被限流），第 {failures} 次失败")
+            if e.code in (403, 429, 541):
+                # 被限流：换新 Cookie，并永久放慢正常查询频率（最慢 5 分钟一次）
+                _cookies.clear()
+                interval = min(interval * 1.5, 300)
+                log(f"HTTP {e.code}（被限流），第 {failures} 次失败，之后改为约 {int(interval)} 秒查一次")
+            else:
+                log(f"HTTP {e.code}，第 {failures} 次失败")
         except (urllib.error.URLError, TimeoutError, ValueError) as e:
             failures += 1
             log(f"请求失败: {e}，第 {failures} 次失败")
         if failures == 10:
             bark_push(cfg, "iPhone Duo 监控异常", "连续 10 次查询失败，请检查网络或配置")
         # 失败时指数退避，最长 10 分钟；正常时加随机抖动避免固定频率
-        base = cfg["interval_seconds"] * (2 ** min(failures, 4))
+        base = interval * (2 ** min(failures, 4))
         time.sleep(min(base, 600) * random.uniform(0.8, 1.2))
 
 
