@@ -4,6 +4,15 @@
 
 只依赖 Python 3.8+ 标准库，无需 `pip install`。
 
+## 电脑上运行（最简单）
+
+1. 装 Python：Mac 一般自带；Windows 到 python.org 下载，安装时勾选「Add Python to PATH」。
+2. GitHub 页面点 **Code → Download ZIP**，解压。
+3. 双击运行：Windows 用 `start-windows.bat`，Mac 用 `start-mac.command`（第一次可能要右键 → 打开）。
+4. 第一次运行时粘贴 Bark Key，手机收到测试通知就开始监控了。默认查美国邮编 91748 附近门店的 MK1L4LL/A。
+
+窗口要一直开着，电脑别休眠。以后要改邮编或型号，编辑自动生成的 `config.json`。
+
 ## iPhone 后台运行（Surge / Loon / Quantumult X / 小火箭）
 
 见 [mobile/README.md](mobile/README.md)。

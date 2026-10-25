@@ -55,6 +55,26 @@ def http_get(url, referer=None, timeout=15):
         return resp.read().decode("utf-8", errors="replace")
 
 
+def first_run_setup(path):
+    """没有配置文件时，问一下 Bark Key，按默认设置（美国 91748、MK1L4LL/A）生成 config.json。"""
+    print("第一次运行，先做一下设置。")
+    raw = input("粘贴你的 Bark Key（或 Bark App 里那整段 https://api.day.app/... 链接）：").strip()
+    m = re.search(r"api\.day\.app/([A-Za-z0-9]+)", raw)
+    key = m.group(1) if m else raw.strip("/ ")
+    cfg = {
+        "bark": {"key": key},
+        "store_host": "https://www.apple.com",
+        "product_path": "/shop/buy-iphone/iphone-duo",
+        "location": "91748",
+        "stores": [],
+        "parts": {"MK1L4LL/A": ""},
+        "interval_seconds": 60,
+    }
+    Path(path).write_text(json.dumps(cfg, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    print(f"已保存到 {path}，以后想改邮编或型号就编辑这个文件。")
+    return key
+
+
 def load_config(path, require_parts=True):
     with open(path, encoding="utf-8") as f:
         cfg = json.load(f)
@@ -216,7 +236,13 @@ def main():
         print(json.dumps(parts, ensure_ascii=False, indent=2))
         return
 
-    cfg = load_config(args.config, require_parts=not (args.state or args.test_bark))
+    if not Path(args.config).exists() and Path(args.config) == DEFAULT_CONFIG:
+        first_run_setup(args.config)
+        cfg = load_config(args.config)
+        if bark_push(cfg, "iPhone Duo 监控", "测试推送：设置成功，开始监控 ✅"):
+            log("测试推送已发送，手机应该收到通知了")
+    else:
+        cfg = load_config(args.config, require_parts=not (args.state or args.test_bark))
 
     if args.test_bark:
         ok = bark_push(cfg, "iPhone Duo 监控", "测试推送：Bark 配置正常 ✅")
