@@ -1,0 +1,1 @@
+{"type":"module","private":true,"scripts":{"test":"node test/local-test.mjs","dev":"wrangler dev","deploy":"wrangler deploy"}}

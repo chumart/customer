@@ -1,0 +1,281 @@
+{%- comment -%}
+  Customer upload form. Posts to the Cloudflare Worker set in "Form endpoint".
+  Add it to any page in the theme editor: Add section → Customer upload form.
+{%- endcomment -%}
+
+{%- assign uid = section.id -%}
+<div class="page-width cuf" id="cuf-{{ uid }}">
+  {%- if section.settings.heading != blank -%}
+    <h2 class="cuf__heading">{{ section.settings.heading }}</h2>
+  {%- endif -%}
+  {%- if section.settings.intro != blank -%}
+    <div class="cuf__intro rte">{{ section.settings.intro }}</div>
+  {%- endif -%}
+
+  <form class="cuf__form" novalidate>
+    <div class="cuf__row">
+      <label class="cuf__field">
+        <span>{{ section.settings.label_name }} *</span>
+        <input type="text" name="name" required autocomplete="name" maxlength="200"
+          value="{{ customer.name | escape }}">
+      </label>
+      <label class="cuf__field">
+        <span>{{ section.settings.label_email }} *</span>
+        <input type="email" name="email" required autocomplete="email" maxlength="200"
+          value="{{ customer.email | escape }}">
+      </label>
+    </div>
+    <div class="cuf__row">
+      {%- if section.settings.show_phone -%}
+        <label class="cuf__field">
+          <span>{{ section.settings.label_phone }}</span>
+          <input type="tel" name="phone" autocomplete="tel" maxlength="50">
+        </label>
+      {%- endif -%}
+      {%- if section.settings.show_order -%}
+        <label class="cuf__field">
+          <span>{{ section.settings.label_order }}</span>
+          <input type="text" name="order_number" maxlength="50">
+        </label>
+      {%- endif -%}
+    </div>
+    <label class="cuf__field">
+      <span>{{ section.settings.label_message }}</span>
+      <textarea name="message" rows="5" maxlength="5000"></textarea>
+    </label>
+
+    <div class="cuf__field">
+      <span>{{ section.settings.label_files }}{% if section.settings.require_file %} *{% endif %}</span>
+      <label class="cuf__drop">
+        <input type="file" multiple class="cuf__input"
+          {% if section.settings.accept != blank %}accept="{{ section.settings.accept | escape }}"{% endif %}>
+        <span class="cuf__drop-text">{{ section.settings.drop_text }}</span>
+        <small>{{ section.settings.limit_text | replace: '[max_files]', section.settings.max_files | replace: '[max_mb]', section.settings.max_file_mb }}</small>
+      </label>
+      <ul class="cuf__list"></ul>
+    </div>
+
+    {%- comment -%} Honeypot: hidden from people, bots fill it. {%- endcomment -%}
+    <div aria-hidden="true" style="position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden">
+      <input type="text" name="_gotcha" tabindex="-1" autocomplete="off">
+    </div>
+
+    {%- if section.settings.turnstile_site_key != blank -%}
+      <div class="cf-turnstile" data-sitekey="{{ section.settings.turnstile_site_key | escape }}"></div>
+      <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+    {%- endif -%}
+
+    <div class="cuf__progress" hidden><div class="cuf__bar"></div></div>
+    <p class="cuf__status" role="status" aria-live="polite"></p>
+    <button type="submit" class="button button--primary cuf__submit">{{ section.settings.label_submit }}</button>
+  </form>
+
+  <div class="cuf__success" hidden>
+    <h3>{{ section.settings.success_heading }}</h3>
+    <p>{{ section.settings.success_text }}</p>
+  </div>
+</div>
+
+<style>
+  #cuf-{{ uid }} { max-width: 720px; margin: 0 auto; padding: {{ section.settings.padding }}px 16px; }
+  #cuf-{{ uid }} .cuf__heading { margin: 0 0 12px; }
+  #cuf-{{ uid }} .cuf__intro { margin-bottom: 24px; }
+  #cuf-{{ uid }} .cuf__form { display: grid; gap: 16px; position: relative; }
+  #cuf-{{ uid }} .cuf__row { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+  #cuf-{{ uid }} .cuf__row:empty { display: none; }
+  #cuf-{{ uid }} .cuf__field { display: grid; gap: 6px; font-size: 14px; }
+  #cuf-{{ uid }} .cuf__field input, #cuf-{{ uid }} .cuf__field textarea {
+    width: 100%; box-sizing: border-box; padding: 12px; font: inherit; font-size: 16px;
+    border: 1px solid rgba(0,0,0,.25); border-radius: 6px; background: #fff; color: inherit;
+  }
+  #cuf-{{ uid }} .cuf__drop {
+    display: grid; gap: 4px; place-items: center; text-align: center; padding: 24px 16px;
+    border: 2px dashed rgba(0,0,0,.25); border-radius: 8px; cursor: pointer; transition: border-color .15s, background .15s;
+  }
+  #cuf-{{ uid }} .cuf__drop.is-over, #cuf-{{ uid }} .cuf__drop:hover { border-color: rgba(0,0,0,.6); background: rgba(0,0,0,.03); }
+  #cuf-{{ uid }} .cuf__drop small { opacity: .65; }
+  #cuf-{{ uid }} .cuf__input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+  #cuf-{{ uid }} .cuf__list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  #cuf-{{ uid }} .cuf__list li {
+    display: flex; justify-content: space-between; align-items: center; gap: 12px;
+    padding: 8px 12px; background: rgba(0,0,0,.04); border-radius: 6px; font-size: 14px;
+  }
+  #cuf-{{ uid }} .cuf__list .cuf__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #cuf-{{ uid }} .cuf__list button { background: none; border: 0; cursor: pointer; font-size: 18px; line-height: 1; padding: 0 4px; color: inherit; opacity: .6; }
+  #cuf-{{ uid }} .cuf__progress { height: 6px; background: rgba(0,0,0,.08); border-radius: 3px; overflow: hidden; }
+  #cuf-{{ uid }} .cuf__bar { height: 100%; width: 0; background: currentColor; transition: width .2s; }
+  #cuf-{{ uid }} .cuf__status { margin: 0; min-height: 1.2em; font-size: 14px; }
+  #cuf-{{ uid }} .cuf__status.is-error { color: #c0392b; }
+  #cuf-{{ uid }} .cuf__submit[disabled] { opacity: .6; cursor: wait; }
+  #cuf-{{ uid }} .cuf__success { text-align: center; padding: 32px 0; }
+</style>
+
+<script>
+(function () {
+  var root = document.getElementById('cuf-{{ uid }}');
+  if (!root || root.dataset.ready) return;
+  root.dataset.ready = '1';
+
+  var ENDPOINT = {{ section.settings.endpoint | json }};
+  var MAX_FILES = {{ section.settings.max_files | default: 10 }};
+  var MAX_FILE = {{ section.settings.max_file_mb | default: 20 }} * 1024 * 1024;
+  var MAX_TOTAL = {{ section.settings.max_total_mb | default: 50 }} * 1024 * 1024;
+  var REQUIRE_FILE = {{ section.settings.require_file | json }};
+  var T = {
+    tooMany: {{ section.settings.err_too_many | json }},
+    tooBig: {{ section.settings.err_too_big | json }},
+    totalTooBig: {{ section.settings.err_total | json }},
+    required: {{ section.settings.err_required | json }},
+    needFile: {{ section.settings.err_need_file | json }},
+    failed: {{ section.settings.err_failed | json }},
+    uploading: {{ section.settings.uploading_text | json }}
+  };
+
+  var form = root.querySelector('.cuf__form');
+  var input = root.querySelector('.cuf__input');
+  var drop = root.querySelector('.cuf__drop');
+  var list = root.querySelector('.cuf__list');
+  var status = root.querySelector('.cuf__status');
+  var button = root.querySelector('.cuf__submit');
+  var progress = root.querySelector('.cuf__progress');
+  var bar = root.querySelector('.cuf__bar');
+  var files = [];
+
+  function fmt(b) { return b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB'; }
+  function say(msg, isError) { status.textContent = msg || ''; status.classList.toggle('is-error', !!isError); }
+
+  function render() {
+    list.innerHTML = '';
+    files.forEach(function (f, i) {
+      var li = document.createElement('li');
+      var name = document.createElement('span');
+      name.className = 'cuf__name';
+      name.textContent = f.name + ' · ' + fmt(f.size);
+      var rm = document.createElement('button');
+      rm.type = 'button';
+      rm.setAttribute('aria-label', 'Remove ' + f.name);
+      rm.textContent = '×';
+      rm.onclick = function () { files.splice(i, 1); render(); say(''); };
+      li.appendChild(name);
+      li.appendChild(rm);
+      list.appendChild(li);
+    });
+  }
+
+  function addFiles(fileList) {
+    say('');
+    Array.prototype.forEach.call(fileList, function (f) {
+      if (files.length >= MAX_FILES) { say(T.tooMany.replace('[max_files]', MAX_FILES), true); return; }
+      if (f.size > MAX_FILE) { say(T.tooBig.replace('[file]', f.name).replace('[max_mb]', MAX_FILE / 1048576), true); return; }
+      var dup = files.some(function (g) { return g.name === f.name && g.size === f.size; });
+      if (!dup) files.push(f);
+    });
+    render();
+  }
+
+  input.addEventListener('change', function () { addFiles(input.files); input.value = ''; });
+  ['dragenter', 'dragover'].forEach(function (e) {
+    drop.addEventListener(e, function (ev) { ev.preventDefault(); drop.classList.add('is-over'); });
+  });
+  ['dragleave', 'drop'].forEach(function (e) {
+    drop.addEventListener(e, function (ev) { ev.preventDefault(); drop.classList.remove('is-over'); });
+  });
+  drop.addEventListener('drop', function (ev) { if (ev.dataTransfer) addFiles(ev.dataTransfer.files); });
+
+  form.addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    say('');
+    var nameEl = form.elements.namedItem('name'), emailEl = form.elements.namedItem('email');
+    if (!nameEl.value.trim() || !emailEl.value.trim() || !emailEl.checkValidity()) {
+      say(T.required, true);
+      return;
+    }
+    if (REQUIRE_FILE && !files.length) { say(T.needFile, true); return; }
+    var total = files.reduce(function (s, f) { return s + f.size; }, 0);
+    if (total > MAX_TOTAL) { say(T.totalTooBig.replace('[max_mb]', MAX_TOTAL / 1048576), true); return; }
+
+    var data = new FormData(form);
+    files.forEach(function (f) { data.append('files', f, f.name); });
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', ENDPOINT);
+    xhr.responseType = 'json';
+    xhr.upload.onprogress = function (e) {
+      if (e.lengthComputable) bar.style.width = Math.round((e.loaded / e.total) * 100) + '%';
+    };
+    function finish(ok, msg) {
+      button.disabled = false;
+      progress.hidden = true;
+      bar.style.width = '0';
+      if (ok) {
+        form.hidden = true;
+        root.querySelector('.cuf__success').hidden = false;
+        root.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } else {
+        say(msg || T.failed, true);
+        if (window.turnstile) window.turnstile.reset();
+      }
+    }
+    xhr.onload = function () {
+      var res = xhr.response || {};
+      finish(xhr.status >= 200 && xhr.status < 300 && res.ok, res.error);
+    };
+    xhr.onerror = function () { finish(false); };
+
+    button.disabled = true;
+    progress.hidden = !files.length;
+    say(files.length ? T.uploading : '');
+    xhr.send(data);
+  });
+})();
+</script>
+
+{% schema %}
+{
+  "name": "Customer upload form",
+  "tag": "section",
+  "settings": [
+    { "type": "header", "content": "Connection" },
+    { "type": "url", "id": "endpoint", "label": "Form endpoint", "info": "Your Cloudflare Worker URL ending in /submit" },
+    { "type": "text", "id": "turnstile_site_key", "label": "Turnstile site key (optional)", "info": "Anti-spam check. Set TURNSTILE_SECRET on the Worker too." },
+
+    { "type": "header", "content": "Content" },
+    { "type": "text", "id": "heading", "label": "Heading", "default": "Send us your files" },
+    { "type": "richtext", "id": "intro", "label": "Intro", "default": "<p>Fill in your details and attach your files. We'll get back to you by email.</p>" },
+    { "type": "text", "id": "success_heading", "label": "Success heading", "default": "Thank you!" },
+    { "type": "text", "id": "success_text", "label": "Success message", "default": "We received your submission and will reply to your email soon." },
+
+    { "type": "header", "content": "Fields" },
+    { "type": "checkbox", "id": "show_phone", "label": "Show phone", "default": true },
+    { "type": "checkbox", "id": "show_order", "label": "Show order number", "default": true },
+    { "type": "checkbox", "id": "require_file", "label": "Require at least one file", "default": false, "info": "Match REQUIRE_FILE on the Worker" },
+    { "type": "text", "id": "label_name", "label": "Name label", "default": "Name" },
+    { "type": "text", "id": "label_email", "label": "Email label", "default": "Email" },
+    { "type": "text", "id": "label_phone", "label": "Phone label", "default": "Phone" },
+    { "type": "text", "id": "label_order", "label": "Order number label", "default": "Order number" },
+    { "type": "text", "id": "label_message", "label": "Message label", "default": "Message" },
+    { "type": "text", "id": "label_files", "label": "Files label", "default": "Files" },
+    { "type": "text", "id": "label_submit", "label": "Button text", "default": "Submit" },
+    { "type": "text", "id": "drop_text", "label": "Upload box text", "default": "Tap to choose files or drag them here" },
+    { "type": "text", "id": "limit_text", "label": "Upload limit hint", "default": "Up to [max_files] files, [max_mb] MB each" },
+
+    { "type": "header", "content": "File limits", "info": "Keep these equal to or below the Worker settings" },
+    { "type": "number", "id": "max_files", "label": "Max files", "default": 10 },
+    { "type": "number", "id": "max_file_mb", "label": "Max size per file (MB)", "default": 20 },
+    { "type": "number", "id": "max_total_mb", "label": "Max total size (MB)", "default": 25, "info": "Up to 25 without R2; raise to match MAX_TOTAL_MB if R2 is on" },
+    { "type": "text", "id": "accept", "label": "Accepted file types", "default": "image/*,.heic,.heif,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.mp4,.mov" },
+
+    { "type": "header", "content": "Messages" },
+    { "type": "text", "id": "uploading_text", "label": "Uploading", "default": "Uploading, please keep this page open…" },
+    { "type": "text", "id": "err_required", "label": "Missing name/email", "default": "Please enter your name and a valid email." },
+    { "type": "text", "id": "err_need_file", "label": "No file", "default": "Please attach at least one file." },
+    { "type": "text", "id": "err_too_many", "label": "Too many files", "default": "You can upload at most [max_files] files." },
+    { "type": "text", "id": "err_too_big", "label": "File too large", "default": "[file] is larger than [max_mb] MB." },
+    { "type": "text", "id": "err_total", "label": "Total too large", "default": "Total size must be under [max_mb] MB." },
+    { "type": "text", "id": "err_failed", "label": "Send failed", "default": "Something went wrong. Please try again." },
+
+    { "type": "range", "id": "padding", "label": "Vertical padding", "min": 0, "max": 100, "step": 4, "unit": "px", "default": 40 }
+  ],
+  "presets": [{ "name": "Customer upload form" }]
+}
+{% endschema %}

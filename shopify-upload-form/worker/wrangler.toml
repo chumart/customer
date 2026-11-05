@@ -1,0 +1,36 @@
+name = "shopify-upload-form"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+
+[vars]
+# Your store's domains, comma separated (include the myshopify.com one for theme preview).
+ALLOWED_ORIGINS = "https://your-store.com,https://www.your-store.com,https://your-store.myshopify.com"
+# Sender must be on a domain verified in Resend.
+MAIL_FROM = "Upload Form <forms@your-store.com>"
+# Where submissions go; comma separate multiple addresses.
+MAIL_TO = "you@example.com"
+SUBJECT_PREFIX = "New upload"
+
+MAX_FILES = "10"
+MAX_FILE_MB = "20"
+MAX_TOTAL_MB = "50"
+# Files are attached to the email up to this total (hard ceiling 28). Beyond it they go to R2 as links.
+ATTACH_LIMIT_MB = "25"
+REQUIRE_FILE = "false"
+# Leave empty to allow any type.
+ALLOWED_EXTENSIONS = "jpg,jpeg,png,gif,webp,heic,heif,pdf,doc,docx,xls,xlsx,txt,zip,mp4,mov"
+
+# Only needed with the R2 bucket below: the Worker's public URL, used in download links.
+PUBLIC_URL = "https://shopify-upload-form.YOUR-SUBDOMAIN.workers.dev"
+LINK_EXPIRES_DAYS = "30"
+
+# Secrets (set with `npx wrangler secret put NAME`, never commit them):
+#   RESEND_API_KEY    required
+#   TURNSTILE_SECRET  optional, enables Cloudflare Turnstile verification
+#   LINK_SECRET       required if the R2 bucket is enabled (any long random string)
+
+# Optional: store files that don't fit in the email and send download links instead.
+# Create the bucket first: npx wrangler r2 bucket create shopify-uploads
+# [[r2_buckets]]
+# binding = "FILES"
+# bucket_name = "shopify-uploads"
