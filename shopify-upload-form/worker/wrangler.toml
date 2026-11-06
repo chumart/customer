@@ -6,7 +6,7 @@ compatibility_date = "2026-10-01"
 # Your store's domains, comma separated (include the myshopify.com one for theme preview).
 ALLOWED_ORIGINS = "https://chumartusa.com,https://www.chumartusa.com,https://e9289f.myshopify.com"
 # Sender must be a verified Sender or on an authenticated domain in SendGrid.
-MAIL_FROM = "Chumart Upload Form <forms@chumartusa.com>"
+MAIL_FROM = "Request Quote <forms@chumartusa.com>"
 # Where submissions go; comma separate multiple addresses.
 MAIL_TO = "info@chumartusa.com"
 SUBJECT_PREFIX = "Customer upload"

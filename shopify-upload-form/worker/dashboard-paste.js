@@ -4,7 +4,7 @@
  * Generated from src/index.js + wrangler.toml; settings below can be edited here. */
 const DEFAULTS = {
   "ALLOWED_ORIGINS": "https://chumartusa.com,https://www.chumartusa.com,https://e9289f.myshopify.com",
-  "MAIL_FROM": "Chumart Upload Form <forms@chumartusa.com>",
+  "MAIL_FROM": "Request Quote <forms@chumartusa.com>",
   "MAIL_TO": "info@chumartusa.com",
   "SUBJECT_PREFIX": "Customer upload",
   "MAX_FILES": "10",
