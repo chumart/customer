@@ -1,12 +1,12 @@
-// Offline test of the Worker: mocks Resend and R2. Run: node test/local-test.mjs
+// Offline test of the Worker: mocks SendGrid and R2. Run: node test/local-test.mjs
 import assert from "node:assert/strict";
 import worker from "../src/index.js";
 
 const sent = [];
 globalThis.fetch = async (url, init) => {
-  if (String(url).includes("api.resend.com")) {
+  if (String(url).includes("api.sendgrid.com")) {
     sent.push(JSON.parse(init.body));
-    return new Response(JSON.stringify({ id: "test" }), { status: 200 });
+    return new Response(JSON.stringify({ id: "test" }), { status: 202 });
   }
   throw new Error("unexpected fetch " + url);
 };
@@ -22,7 +22,7 @@ const baseEnv = {
   ALLOWED_ORIGINS: ORIGIN,
   MAIL_FROM: "Form <forms@shop.example>",
   MAIL_TO: "owner@shop.example",
-  RESEND_API_KEY: "re_test",
+  SENDGRID_API_KEY: "SG.test",
   ALLOWED_EXTENSIONS: "jpg,png,pdf",
   MAX_FILE_MB: "20",
   ATTACH_LIMIT_MB: "1",
@@ -42,9 +42,12 @@ const ok = { name: "Ann <b>", email: "ann@x.com", order_number: "1001", message:
 let res = await submit(ok, [file("a.jpg", 1000)]);
 assert.equal(res.status, 200);
 assert.equal(res.headers.get("access-control-allow-origin"), ORIGIN);
-assert.equal(sent.at(-1).reply_to, "ann@x.com");
+assert.equal(sent.at(-1).reply_to.email, "ann@x.com");
+assert.deepEqual(sent.at(-1).from, { name: "Form", email: "forms@shop.example" });
+assert.deepEqual(sent.at(-1).personalizations[0].to, [{ email: "owner@shop.example" }]);
+assert.equal(sent.at(-1).attachments[0].disposition, "attachment");
 assert.equal(sent.at(-1).attachments[0].content, Buffer.alloc(1000, 65).toString("base64"));
-assert.ok(sent.at(-1).html.includes("Ann &lt;b&gt;"), "html escaped");
+assert.ok(sent.at(-1).content[1].value.includes("Ann &lt;b&gt;"), "html escaped");
 assert.ok(sent.at(-1).subject.includes("#1001"));
 console.log("✓ small file attached, html escaped");
 
@@ -71,7 +74,7 @@ res = await submit(ok, [file("small.png", 600_000), file("big.pdf", 900_000)], {
 assert.equal(res.status, 200);
 const mail = sent.at(-1);
 assert.equal(mail.attachments.length, 1);
-const link = mail.text.match(/https:\/\/worker\.example\/file\/\S+/)[0];
+const link = mail.content[0].value.match(/https:\/\/worker\.example\/file\/\S+/)[0];
 console.log("✓ overflow file stored in R2, link:", link.slice(0, 70) + "…");
 
 res = await worker.fetch(new Request(link), { ...baseEnv, FILES });

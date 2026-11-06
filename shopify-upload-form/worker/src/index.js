@@ -4,7 +4,7 @@
  *   POST /submit        multipart/form-data from the Shopify section
  *   GET  /file/<key>    signed download link for files stored in R2 (optional)
  *
- * Text fields + files are emailed to MAIL_TO via Resend. Files are attached to
+ * Text fields + files are emailed to MAIL_TO via SendGrid. Files are attached to
  * the email while the total stays under ATTACH_LIMIT_MB; anything beyond that
  * is stored in R2 (if the FILES bucket is bound) and sent as a download link.
  */
@@ -141,25 +141,31 @@ async function handleSubmit(request, env, cors) {
   // ---- email ----
   const subjectBits = [values.name, values.order_number && `#${values.order_number}`].filter(Boolean);
   const email = {
-    from: env.MAIL_FROM,
-    to: env.MAIL_TO.split(",").map((s) => s.trim()).filter(Boolean),
-    reply_to: values.email,
+    personalizations: [
+      { to: env.MAIL_TO.split(",").map((s) => s.trim()).filter(Boolean).map((e) => ({ email: e })) },
+    ],
+    from: parseAddress(env.MAIL_FROM),
+    reply_to: { email: values.email, name: values.name },
     subject: `${env.SUBJECT_PREFIX || "New upload"}: ${subjectBits.join(" ")}`,
-    html: renderHtml(values, files, attachments.length, links),
-    text: renderText(values, files, attachments.length, links),
+    content: [
+      { type: "text/plain", value: renderText(values, files, attachments.length, links) },
+      { type: "text/html", value: renderHtml(values, files, attachments.length, links) },
+    ],
   };
-  if (attachments.length) email.attachments = attachments;
+  if (attachments.length) {
+    email.attachments = attachments.map((a) => ({ ...a, disposition: "attachment" }));
+  }
 
-  const res = await fetch("https://api.resend.com/emails", {
+  const res = await fetch("https://api.sendgrid.com/v3/mail/send", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${env.RESEND_API_KEY}`,
+      Authorization: `Bearer ${env.SENDGRID_API_KEY}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify(email),
   });
   if (!res.ok) {
-    console.error("Resend error", res.status, await res.text());
+    console.error("SendGrid error", res.status, await res.text());
     return json({ ok: false, error: "Could not send your submission, please try again later." }, 502, cors);
   }
 
@@ -172,8 +178,8 @@ function config(env) {
   const mb = (v, d) => Number(v || d);
   const maxFileMb = mb(env.MAX_FILE_MB, 20);
   const maxTotalMb = mb(env.MAX_TOTAL_MB, 50);
-  // Resend caps an email at 40 MB *after* base64 (+33%), so ~28 MB raw is the ceiling.
-  const attachLimitMb = Math.min(mb(env.ATTACH_LIMIT_MB, 25), 28);
+  // SendGrid caps a whole message at 30 MB *after* base64 (+33%), so ~20 MB raw is a safe ceiling.
+  const attachLimitMb = Math.min(mb(env.ATTACH_LIMIT_MB, 20), 20);
   return {
     maxFileMb,
     maxTotalMb,
@@ -214,6 +220,12 @@ function json(body, status = 200, extra = {}) {
     status,
     headers: { "Content-Type": "application/json", ...extra },
   });
+}
+
+// "Upload Form <forms@shop.com>" -> { name, email }
+function parseAddress(s) {
+  const m = String(s || "").match(/^\s*"?([^"<]*?)"?\s*<([^>]+)>\s*$/);
+  return m ? (m[1] ? { name: m[1], email: m[2].trim() } : { email: m[2].trim() }) : { email: String(s).trim() };
 }
 
 function isAllowedType(name, allowedExt) {
