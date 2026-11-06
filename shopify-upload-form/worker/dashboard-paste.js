@@ -347,23 +347,68 @@ function formatSize(bytes) {
 }
 
 function renderHtml(title, rows, files, attachedCount, links) {
+  const NAVY = "#1f3a68";
+  const BORDER = "#c9d1dc";
+  const cell = `padding:10px 14px;border:1px solid ${BORDER};vertical-align:top;font-size:14px;line-height:1.5;`;
+  const valueHtml = (label, v) => {
+    const text = escapeHtml(v.replace(/^\n+/, ""));
+    if (/^e-?mail$/i.test(label) && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) {
+      return `<a href="mailto:${text}" style="color:#1668b0">${text}</a>`;
+    }
+    if (/phone|tel/i.test(label) && /^[+\d][\d\s().-]{5,}$/.test(v)) {
+      return `<a href="tel:${escapeHtml(v.replace(/[^\d+]/g, ""))}" style="color:#1668b0">${text}</a>`;
+    }
+    return text;
+  };
   const rowsHtml = [...rows]
     .map(
-      ([label, v]) =>
-        `<tr><td style="padding:6px 16px 6px 0;color:#666;vertical-align:top">${escapeHtml(label)}</td>` +
-        `<td style="padding:6px 0;white-space:pre-wrap">${escapeHtml(v.replace(/^\n+/, ""))}</td></tr>`
+      ([label, v], i) =>
+        `<tr style="background:${i % 2 ? "#f5f7fa" : "#ffffff"}">` +
+        `<td style="${cell}width:34%;font-weight:600;color:#1b2733">${escapeHtml(label)}</td>` +
+        `<td style="${cell}color:#1b2733;white-space:pre-wrap;word-break:break-word">${valueHtml(label, v)}</td></tr>`
     )
     .join("");
+
   let filesHtml = "";
   if (files.length) {
-    const attached = files.slice(0, attachedCount).map((f) => `<li>${escapeHtml(safeFilename(f.name))} (${formatSize(f.size)}) — attached</li>`);
-    const linked = links.map((l) => `<li><a href="${escapeHtml(l.url)}">${escapeHtml(l.filename)}</a> (${formatSize(l.size)}) — download link</li>`);
-    filesHtml = `<h3 style="margin:20px 0 8px">Files (${files.length})</h3><ul>${attached.concat(linked).join("")}</ul>`;
+    const items = files
+      .slice(0, attachedCount)
+      .map((f) => [escapeHtml(safeFilename(f.name)), formatSize(f.size), "Attached"])
+      .concat(links.map((l) => [`<a href="${escapeHtml(l.url)}" style="color:#1668b0">${escapeHtml(l.filename)}</a>`, formatSize(l.size), "Download link (expires)"]));
+    filesHtml =
+      `<tr><td colspan="2" style="${cell}background:${NAVY};color:#ffffff;font-weight:700">Files (${files.length})</td></tr>` +
+      items
+        .map(
+          ([name, size, how], i) =>
+            `<tr style="background:${i % 2 ? "#f5f7fa" : "#ffffff"}"><td style="${cell}color:#1b2733;word-break:break-all">${name}</td>` +
+            `<td style="${cell}color:#4a5a6a">${size} &middot; ${how}</td></tr>`
+        )
+        .join("");
   }
-  return `<div style="font-family:-apple-system,Segoe UI,Arial,sans-serif;font-size:14px;color:#222">
-<h2 style="margin:0 0 12px">${escapeHtml(title)}</h2>
-<table style="border-collapse:collapse">${rowsHtml}</table>${filesHtml}
-<p style="color:#999;font-size:12px;margin-top:24px">Reply to this email to answer the customer directly.</p></div>`;
+
+  const submitted = new Date().toLocaleString("en-US", {
+    timeZone: "America/Los_Angeles",
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+
+  return `<!doctype html><html><body style="margin:0;padding:0;background:#eef1f5">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#eef1f5;padding:24px 12px">
+<tr><td align="center">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:680px;background:#ffffff;border-radius:8px;overflow:hidden;font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif">
+<tr><td style="background:${NAVY};padding:18px 20px;color:#ffffff;font-size:20px;font-weight:700">${escapeHtml(title)}</td></tr>
+<tr><td style="padding:20px">
+<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border:1px solid ${BORDER}">
+<tr><th align="left" style="${cell}background:${NAVY};color:#ffffff">Field</th><th align="left" style="${cell}background:${NAVY};color:#ffffff">Value</th></tr>
+${rowsHtml}
+${filesHtml}
+</table>
+<p style="margin:16px 0 0;font-size:12px;color:#7a8896">Submitted ${escapeHtml(submitted)} (Pacific) &middot; Reply to this email to answer the customer directly.</p>
+</td></tr>
+</table>
+</td></tr>
+</table>
+</body></html>`;
 }
 
 function renderText(rows, files, attachedCount, links) {
