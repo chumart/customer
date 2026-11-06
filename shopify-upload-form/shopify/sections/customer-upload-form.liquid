@@ -39,6 +39,18 @@
         </label>
       {%- endif -%}
     </div>
+    {%- if section.settings.topic_options != blank -%}
+      <label class="cuf__field">
+        <span>{{ section.settings.label_topic }}</span>
+        <select name="topic">
+          {%- assign topic_opts = section.settings.topic_options | newline_to_br | split: '<br />' -%}
+          {%- for opt in topic_opts -%}
+            {%- assign o = opt | strip -%}
+            {%- if o != blank -%}<option value="{{ o | escape }}">{{ o }}</option>{%- endif -%}
+          {%- endfor -%}
+        </select>
+      </label>
+    {%- endif -%}
     <label class="cuf__field">
       <span>{{ section.settings.label_message }}</span>
       <textarea name="message" rows="5" maxlength="5000"></textarea>
@@ -67,7 +79,7 @@
 
     <div class="cuf__progress" hidden><div class="cuf__bar"></div></div>
     <p class="cuf__status" role="status" aria-live="polite"></p>
-    <button type="submit" class="button button--primary cuf__submit">{{ section.settings.label_submit }}</button>
+    <button type="submit" class="button button--primary btn btn--primary cuf__submit">{{ section.settings.label_submit }}</button>
   </form>
 
   <div class="cuf__success" hidden>
@@ -84,7 +96,7 @@
   #cuf-{{ uid }} .cuf__row { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
   #cuf-{{ uid }} .cuf__row:empty { display: none; }
   #cuf-{{ uid }} .cuf__field { display: grid; gap: 6px; font-size: 14px; }
-  #cuf-{{ uid }} .cuf__field input, #cuf-{{ uid }} .cuf__field textarea {
+  #cuf-{{ uid }} .cuf__field input, #cuf-{{ uid }} .cuf__field textarea, #cuf-{{ uid }} .cuf__field select {
     width: 100%; box-sizing: border-box; padding: 12px; font: inherit; font-size: 16px;
     border: 1px solid rgba(0,0,0,.25); border-radius: 6px; background: #fff; color: inherit;
   }
@@ -106,6 +118,8 @@
   #cuf-{{ uid }} .cuf__bar { height: 100%; width: 0; background: currentColor; transition: width .2s; }
   #cuf-{{ uid }} .cuf__status { margin: 0; min-height: 1.2em; font-size: 14px; }
   #cuf-{{ uid }} .cuf__status.is-error { color: #c0392b; }
+  #cuf-{{ uid }} [hidden] { display: none !important; }
+  #cuf-{{ uid }} .cuf__submit { justify-self: start; min-width: 160px; padding: 14px 28px; border: 0; border-radius: 6px; background: #111; color: #fff; font: inherit; font-size: 16px; cursor: pointer; }
   #cuf-{{ uid }} .cuf__submit[disabled] { opacity: .6; cursor: wait; }
   #cuf-{{ uid }} .cuf__success { text-align: center; padding: 32px 0; }
 </style>
@@ -150,11 +164,11 @@
       var li = document.createElement('li');
       var name = document.createElement('span');
       name.className = 'cuf__name';
-      name.textContent = f.name + ' · ' + fmt(f.size);
+      name.textContent = f.name + ' \u00b7 ' + fmt(f.size);
       var rm = document.createElement('button');
       rm.type = 'button';
       rm.setAttribute('aria-label', 'Remove ' + f.name);
-      rm.textContent = '×';
+      rm.textContent = '\u00d7';
       rm.onclick = function () { files.splice(i, 1); render(); say(''); };
       li.appendChild(name);
       li.appendChild(rm);
@@ -253,6 +267,8 @@
     { "type": "text", "id": "label_email", "label": "Email label", "default": "Email" },
     { "type": "text", "id": "label_phone", "label": "Phone label", "default": "Phone" },
     { "type": "text", "id": "label_order", "label": "Order number label", "default": "Order number" },
+    { "type": "text", "id": "label_topic", "label": "Dropdown label", "default": "Related" },
+    { "type": "textarea", "id": "topic_options", "label": "Dropdown options (one per line)", "info": "Leave empty to hide the dropdown", "default": "Sales\nProject Quote\nParts\nWarranty\nPrice Match Require" },
     { "type": "text", "id": "label_message", "label": "Message label", "default": "Message" },
     { "type": "text", "id": "label_files", "label": "Files label", "default": "Files" },
     { "type": "text", "id": "label_submit", "label": "Button text", "default": "Submit" },

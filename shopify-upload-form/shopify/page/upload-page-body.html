@@ -1,0 +1,195 @@
+<div class="cuf" id="cuf-upload">
+    <div class="cuf__intro rte"><p>Send us photos, documents or videos (e.g. for a warranty claim, a damaged item or a quote request). Fill in your details, attach your files, and we'll reply by email.</p></div>
+  <form class="cuf__form" novalidate>
+    <div class="cuf__row">
+      <label class="cuf__field">
+        <span>Name *</span>
+        <input type="text" name="name" required autocomplete="name" maxlength="200"
+          value="">
+      </label>
+      <label class="cuf__field">
+        <span>Email *</span>
+        <input type="email" name="email" required autocomplete="email" maxlength="200"
+          value="">
+      </label>
+    </div>
+    <div class="cuf__row">
+        <label class="cuf__field">
+          <span>Phone</span>
+          <input type="tel" name="phone" autocomplete="tel" maxlength="50">
+        </label>
+        <label class="cuf__field">
+          <span>Order number</span>
+          <input type="text" name="order_number" maxlength="50">
+        </label>
+    </div>
+    <label class="cuf__field">
+      <span>Message</span>
+      <textarea name="message" rows="5" maxlength="5000"></textarea>
+    </label>
+    <div class="cuf__field">
+      <span>Files</span>
+      <label class="cuf__drop">
+        <input type="file" multiple class="cuf__input"
+          accept="image/*,.heic,.heif,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.mp4,.mov">
+        <span class="cuf__drop-text">Tap to choose files or drag them here</span>
+        <small>Up to 10 files, 20 MB each</small>
+      </label>
+      <ul class="cuf__list"></ul>
+    </div>
+    <div aria-hidden="true" style="position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden">
+      <input type="text" name="_gotcha" tabindex="-1" autocomplete="off">
+    </div>
+    <div class="cuf__progress" hidden><div class="cuf__bar"></div></div>
+    <p class="cuf__status" role="status" aria-live="polite"></p>
+    <button type="submit" class="button button--primary btn btn--primary cuf__submit">Submit</button>
+  </form>
+  <div class="cuf__success" hidden>
+    <h3>Thank you!</h3>
+    <p>We received your submission and will reply to your email soon.</p>
+  </div>
+</div>
+<style>
+  #cuf-upload { max-width: 720px; margin: 0 auto; padding: 8px 0 40px; }
+  #cuf-upload .cuf__heading { margin: 0 0 12px; }
+  #cuf-upload .cuf__intro { margin-bottom: 24px; }
+  #cuf-upload .cuf__form { display: grid; gap: 16px; position: relative; }
+  #cuf-upload .cuf__row { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+  #cuf-upload .cuf__row:empty { display: none; }
+  #cuf-upload .cuf__field { display: grid; gap: 6px; font-size: 14px; }
+  #cuf-upload .cuf__field input, #cuf-upload .cuf__field textarea {
+    width: 100%; box-sizing: border-box; padding: 12px; font: inherit; font-size: 16px;
+    border: 1px solid rgba(0,0,0,.25); border-radius: 6px; background: #fff; color: inherit;
+  }
+  #cuf-upload .cuf__drop {
+    display: grid; gap: 4px; place-items: center; text-align: center; padding: 24px 16px;
+    border: 2px dashed rgba(0,0,0,.25); border-radius: 8px; cursor: pointer; transition: border-color .15s, background .15s;
+  }
+  #cuf-upload .cuf__drop.is-over, #cuf-upload .cuf__drop:hover { border-color: rgba(0,0,0,.6); background: rgba(0,0,0,.03); }
+  #cuf-upload .cuf__drop small { opacity: .65; }
+  #cuf-upload .cuf__input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+  #cuf-upload .cuf__list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  #cuf-upload .cuf__list li {
+    display: flex; justify-content: space-between; align-items: center; gap: 12px;
+    padding: 8px 12px; background: rgba(0,0,0,.04); border-radius: 6px; font-size: 14px;
+  }
+  #cuf-upload .cuf__list .cuf__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #cuf-upload .cuf__list button { background: none; border: 0; cursor: pointer; font-size: 18px; line-height: 1; padding: 0 4px; color: inherit; opacity: .6; }
+  #cuf-upload .cuf__progress { height: 6px; background: rgba(0,0,0,.08); border-radius: 3px; overflow: hidden; }
+  #cuf-upload .cuf__bar { height: 100%; width: 0; background: currentColor; transition: width .2s; }
+  #cuf-upload .cuf__status { margin: 0; min-height: 1.2em; font-size: 14px; }
+  #cuf-upload .cuf__status.is-error { color: #c0392b; }
+  #cuf-upload [hidden] { display: none !important; }
+  #cuf-upload .cuf__submit { justify-self: start; min-width: 160px; padding: 14px 28px; border: 0; border-radius: 6px; background: #111; color: #fff; font: inherit; font-size: 16px; cursor: pointer; }
+  #cuf-upload .cuf__submit[disabled] { opacity: .6; cursor: wait; }
+  #cuf-upload .cuf__success { text-align: center; padding: 32px 0; }
+</style>
+<script>
+(function () {
+  var root = document.getElementById('cuf-upload');
+  if (!root || root.dataset.ready) return;
+  root.dataset.ready = '1';
+  var ENDPOINT = "https://shopify-upload-form.chumartusa.workers.dev/submit";
+  var MAX_FILES = 10;
+  var MAX_FILE = 20 * 1024 * 1024;
+  var MAX_TOTAL = 20 * 1024 * 1024;
+  var REQUIRE_FILE = false;
+  var T = {
+    tooMany: "You can upload at most [max_files] files.",
+    tooBig: "[file] is larger than [max_mb] MB.",
+    totalTooBig: "Total size must be under [max_mb] MB.",
+    required: "Please enter your name and a valid email.",
+    needFile: "Please attach at least one file.",
+    failed: "Something went wrong. Please try again.",
+    uploading: "Uploading, please keep this page open..."
+  };
+  var form = root.querySelector('.cuf__form');
+  var input = root.querySelector('.cuf__input');
+  var drop = root.querySelector('.cuf__drop');
+  var list = root.querySelector('.cuf__list');
+  var status = root.querySelector('.cuf__status');
+  var button = root.querySelector('.cuf__submit');
+  var progress = root.querySelector('.cuf__progress');
+  var bar = root.querySelector('.cuf__bar');
+  var files = [];
+  function fmt(b) { return b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB'; }
+  function say(msg, isError) { status.textContent = msg || ''; status.classList.toggle('is-error', !!isError); }
+  function render() {
+    list.innerHTML = '';
+    files.forEach(function (f, i) {
+      var li = document.createElement('li');
+      var name = document.createElement('span');
+      name.className = 'cuf__name';
+      name.textContent = f.name + ' \u00b7 ' + fmt(f.size);
+      var rm = document.createElement('button');
+      rm.type = 'button';
+      rm.setAttribute('aria-label', 'Remove ' + f.name);
+      rm.textContent = '\u00d7';
+      rm.onclick = function () { files.splice(i, 1); render(); say(''); };
+      li.appendChild(name);
+      li.appendChild(rm);
+      list.appendChild(li);
+    });
+  }
+  function addFiles(fileList) {
+    say('');
+    Array.prototype.forEach.call(fileList, function (f) {
+      if (files.length >= MAX_FILES) { say(T.tooMany.replace('[max_files]', MAX_FILES), true); return; }
+      if (f.size > MAX_FILE) { say(T.tooBig.replace('[file]', f.name).replace('[max_mb]', MAX_FILE / 1048576), true); return; }
+      var dup = files.some(function (g) { return g.name === f.name && g.size === f.size; });
+      if (!dup) files.push(f);
+    });
+    render();
+  }
+  input.addEventListener('change', function () { addFiles(input.files); input.value = ''; });
+  ['dragenter', 'dragover'].forEach(function (e) {
+    drop.addEventListener(e, function (ev) { ev.preventDefault(); drop.classList.add('is-over'); });
+  });
+  ['dragleave', 'drop'].forEach(function (e) {
+    drop.addEventListener(e, function (ev) { ev.preventDefault(); drop.classList.remove('is-over'); });
+  });
+  drop.addEventListener('drop', function (ev) { if (ev.dataTransfer) addFiles(ev.dataTransfer.files); });
+  form.addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    say('');
+    var nameEl = form.elements.namedItem('name'), emailEl = form.elements.namedItem('email');
+    if (!nameEl.value.trim() || !emailEl.value.trim() || !emailEl.checkValidity()) {
+      say(T.required, true);
+      return;
+    }
+    if (REQUIRE_FILE && !files.length) { say(T.needFile, true); return; }
+    var total = files.reduce(function (s, f) { return s + f.size; }, 0);
+    if (total > MAX_TOTAL) { say(T.totalTooBig.replace('[max_mb]', MAX_TOTAL / 1048576), true); return; }
+    var data = new FormData(form);
+    files.forEach(function (f) { data.append('files', f, f.name); });
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', ENDPOINT);
+    xhr.responseType = 'json';
+    xhr.upload.onprogress = function (e) {
+      if (e.lengthComputable) bar.style.width = Math.round((e.loaded / e.total) * 100) + '%';
+    };
+    function finish(ok, msg) {
+      button.disabled = false;
+      progress.hidden = true;
+      bar.style.width = '0';
+      if (ok) {
+        form.hidden = true;
+        root.querySelector('.cuf__success').hidden = false;
+        root.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } else {
+        say(msg || T.failed, true);
+        if (window.turnstile) window.turnstile.reset();
+      }
+    }
+    xhr.onload = function () {
+      var res = xhr.response || {};
+      finish(xhr.status >= 200 && xhr.status < 300 && res.ok, res.error);
+    };
+    xhr.onerror = function () { finish(false); };
+    button.disabled = true;
+    progress.hidden = !files.length;
+    say(files.length ? T.uploading : '');
+    xhr.send(data);
+  });
+})();
+</script>

@@ -15,6 +15,7 @@ const FIELDS = [
   ["email", "Email", true],
   ["phone", "Phone", false],
   ["order_number", "Order number", false],
+  ["topic", "Related", false],
   ["message", "Message", false],
 ];
 

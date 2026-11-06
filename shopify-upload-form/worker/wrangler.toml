@@ -21,7 +21,7 @@ REQUIRE_FILE = "false"
 ALLOWED_EXTENSIONS = "jpg,jpeg,png,gif,webp,heic,heif,pdf,doc,docx,xls,xlsx,txt,zip,mp4,mov"
 
 # Only needed with the R2 bucket below: the Worker's public URL, used in download links.
-PUBLIC_URL = "https://shopify-upload-form.YOUR-SUBDOMAIN.workers.dev"
+PUBLIC_URL = "https://shopify-upload-form.chumartusa.workers.dev"
 LINK_EXPIRES_DAYS = "30"
 
 # Secrets (set with `npx wrangler secret put NAME`, never commit them):

@@ -13,6 +13,7 @@ const DEFAULTS = {
   "ATTACH_LIMIT_MB": "20",
   "REQUIRE_FILE": "false",
   "ALLOWED_EXTENSIONS": "jpg,jpeg,png,gif,webp,heic,heif,pdf,doc,docx,xls,xlsx,txt,zip,mp4,mov",
+  "PUBLIC_URL": "https://shopify-upload-form.chumartusa.workers.dev",
   "LINK_EXPIRES_DAYS": "30"
 };
 
@@ -33,6 +34,7 @@ const FIELDS = [
   ["email", "Email", true],
   ["phone", "Phone", false],
   ["order_number", "Order number", false],
+  ["topic", "Related", false],
   ["message", "Message", false],
 ];
 
