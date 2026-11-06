@@ -90,6 +90,46 @@ res = await submit(ok, [file("small.png", 600_000), file("big.pdf", 900_000)]);
 assert.equal(res.status, 400);
 console.log("✓ over attach limit without R2 rejected");
 
+// Request-a-quote style: arbitrary field names, _subject, checkbox, file under "attachment"
+{
+  const fd = new FormData();
+  fd.append("_subject", "New Quote Request");
+  fd.append("_honey", "");
+  fd.append("_next", "https://x");
+  fd.append("First Name", "Bob");
+  fd.append("Last Name", "Lee");
+  fd.append("Email", "bob@x.com");
+  fd.append("Company Type", "Restaurant");
+  fd.append("Requested Items", "\n1. PLM-54RS  x 2");
+  fd.append("Notes: Tax-exempt organization", "Yes");
+  fd.append("attachment", file("list.pdf", 2000));
+  res = await worker.fetch(new Request("https://worker.example/submit", { method: "POST", body: fd, headers: { origin: ORIGIN } }), baseEnv);
+  assert.equal(res.status, 200, await res.clone().text());
+  const m = sent.at(-1);
+  assert.equal(m.subject, "New Quote Request: Bob Lee");
+  assert.equal(m.reply_to.email, "bob@x.com");
+  assert.equal(m.attachments[0].filename, "list.pdf");
+  const t = m.content[0].value;
+  assert.ok(t.includes("Company Type: Restaurant") && t.includes("Notes: Tax-exempt organization: Yes") && !t.includes("_next"), t);
+  console.log("✓ quote form: arbitrary fields, _subject, attachment field name");
+}
+
+// Plain HTML form post: redirect to _next on success, HTML error page otherwise
+{
+  const mk = (next, email) => { const fd = new FormData(); fd.append("_next", next); fd.append("Email", email); fd.append("First Name", "Z"); return fd; };
+  const html = { origin: ORIGIN, accept: "text/html,application/xhtml+xml" };
+  res = await worker.fetch(new Request("https://worker.example/submit", { method: "POST", body: mk(ORIGIN + "/pages/request-quote?submitted=1", "z@x.com"), headers: html }), baseEnv);
+  assert.equal(res.status, 303);
+  assert.equal(res.headers.get("location"), ORIGIN + "/pages/request-quote?submitted=1");
+  res = await worker.fetch(new Request("https://worker.example/submit", { method: "POST", body: mk("https://evil.example/", "z@x.com"), headers: html }), baseEnv);
+  assert.equal(res.status, 200);
+  assert.ok((await res.text()).includes("Thank you"));
+  res = await worker.fetch(new Request("https://worker.example/submit", { method: "POST", body: mk(ORIGIN + "/", "bad"), headers: html }), baseEnv);
+  assert.equal(res.status, 400);
+  assert.ok((await res.text()).includes("valid email"));
+  console.log("✓ HTML form post: safe redirect, no open redirect, HTML error page");
+}
+
 res = await worker.fetch(new Request("https://worker.example/submit", { method: "OPTIONS", headers: { origin: ORIGIN } }), baseEnv);
 assert.equal(res.status, 204);
 console.log("✓ CORS preflight\nall passed");

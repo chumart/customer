@@ -9,15 +9,19 @@
  * is stored in R2 (if the FILES bucket is bound) and sent as a download link.
  */
 
-const FIELDS = [
-  // [form field name, label in the email, required]
-  ["name", "Name", true],
-  ["email", "Email", true],
-  ["phone", "Phone", false],
-  ["order_number", "Order number", false],
-  ["topic", "Related", false],
-  ["message", "Message", false],
-];
+// Any form field is accepted and emailed in form order (like FormSubmit).
+// Names starting with "_" are control fields and are not shown. These known
+// names get a nicer label; any other field name is used as its own label.
+const LABELS = {
+  name: "Name",
+  email: "Email",
+  phone: "Phone",
+  order_number: "Order number",
+  topic: "Related",
+  message: "Message",
+};
+const SKIP_FIELDS = new Set(["cf-turnstile-response", "g-recaptcha-response"]);
+const MAX_FIELDS = 100;
 
 const MAX_TEXT_LENGTH = 5000;
 
@@ -35,20 +39,26 @@ export default {
     if (url.pathname !== "/submit" || request.method !== "POST") {
       return new Response("Not found", { status: 404 });
     }
+    // A plain HTML <form> post (browser navigation) gets a redirect or an HTML
+    // page back, like FormSubmit; fetch/XHR callers get JSON.
+    const wantsHtml = (request.headers.get("accept") || "").includes("text/html");
+    const ctx = {};
+    let res;
     if (!cors) {
-      return json({ ok: false, error: "Origin not allowed" }, 403);
+      res = json({ ok: false, error: "Origin not allowed" }, 403);
+    } else {
+      try {
+        res = await handleSubmit(request, env, cors, ctx);
+      } catch (err) {
+        console.error(err && err.stack ? err.stack : err);
+        res = json({ ok: false, error: "Server error, please try again later." }, 500, cors);
+      }
     }
-
-    try {
-      return await handleSubmit(request, env, cors);
-    } catch (err) {
-      console.error(err && err.stack ? err.stack : err);
-      return json({ ok: false, error: "Server error, please try again later." }, 500, cors);
-    }
+    return wantsHtml ? toHtmlResponse(res, ctx.next, env) : res;
   },
 };
 
-async function handleSubmit(request, env, cors) {
+async function handleSubmit(request, env, cors, ctx = {}) {
   const cfg = config(env);
 
   const declared = Number(request.headers.get("content-length") || 0);
@@ -63,8 +73,10 @@ async function handleSubmit(request, env, cors) {
     return json({ ok: false, error: "Invalid form submission." }, 400, cors);
   }
 
+  ctx.next = String(form.get("_next") || "");
+
   // Honeypot: real users never fill this hidden field. Pretend success for bots.
-  if (String(form.get("_gotcha") || "").trim() !== "") {
+  if (String(form.get("_gotcha") || form.get("_honey") || "").trim() !== "") {
     return json({ ok: true }, 200, cors);
   }
 
@@ -79,21 +91,32 @@ async function handleSubmit(request, env, cors) {
     }
   }
 
-  // ---- text fields ----
-  const values = {};
-  for (const [key, label, required] of FIELDS) {
-    const v = String(form.get(key) || "").trim().slice(0, MAX_TEXT_LENGTH);
-    if (required && !v) {
-      return json({ ok: false, error: `${label} is required.` }, 400, cors);
+  // ---- text fields (any name, in form order; repeated names are joined) ----
+  const rows = new Map();
+  const files = [];
+  for (const [key, value] of form.entries()) {
+    if (typeof value === "object" && value !== null) {
+      if (value.size > 0) files.push(value);
+      continue;
     }
-    values[key] = v;
+    if (key.startsWith("_") || SKIP_FIELDS.has(key)) continue;
+    const v = String(value).trim().slice(0, MAX_TEXT_LENGTH);
+    if (!v) continue;
+    const label = (LABELS[key] || key).slice(0, 100);
+    rows.set(label, rows.has(label) ? `${rows.get(label)}, ${v}` : v);
+    if (rows.size > MAX_FIELDS) {
+      return json({ ok: false, error: "Too many fields." }, 400, cors);
+    }
   }
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email)) {
+  const lower = (k) => String(form.get(k) || form.get(k.toLowerCase()) || "").trim();
+  const replyEmail = lower("Email");
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(replyEmail)) {
     return json({ ok: false, error: "Please enter a valid email address." }, 400, cors);
   }
+  const displayName = (lower("Name") || [lower("First Name"), lower("Last Name")].filter(Boolean).join(" ")).slice(0, 100);
+  const orderNo = lower("order_number");
 
   // ---- files ----
-  const files = form.getAll("files").filter((f) => typeof f === "object" && f && f.size > 0);
   if (files.length > cfg.maxFiles) {
     return json({ ok: false, error: `You can upload at most ${cfg.maxFiles} files.` }, 400, cors);
   }
@@ -140,17 +163,21 @@ async function handleSubmit(request, env, cors) {
   }
 
   // ---- email ----
-  const subjectBits = [values.name, values.order_number && `#${values.order_number}`].filter(Boolean);
+  const subjectBits = [displayName, orderNo && `#${orderNo}`].filter(Boolean);
+  const subjectBase = String(form.get("_subject") || env.SUBJECT_PREFIX || "New upload")
+    .replace(/[\r\n]+/g, " ")
+    .trim()
+    .slice(0, 120);
   const email = {
     personalizations: [
       { to: env.MAIL_TO.split(",").map((s) => s.trim()).filter(Boolean).map((e) => ({ email: e })) },
     ],
     from: parseAddress(env.MAIL_FROM),
-    reply_to: { email: values.email, name: values.name },
-    subject: `${env.SUBJECT_PREFIX || "New upload"}: ${subjectBits.join(" ")}`,
+    reply_to: displayName ? { email: replyEmail, name: displayName } : { email: replyEmail },
+    subject: subjectBits.length ? `${subjectBase}: ${subjectBits.join(" ")}` : subjectBase,
     content: [
-      { type: "text/plain", value: renderText(values, files, attachments.length, links) },
-      { type: "text/html", value: renderHtml(values, files, attachments.length, links) },
+      { type: "text/plain", value: renderText(rows, files, attachments.length, links) },
+      { type: "text/html", value: renderHtml(subjectBase, rows, files, attachments.length, links) },
     ],
   };
   if (attachments.length) {
@@ -171,6 +198,41 @@ async function handleSubmit(request, env, cors) {
   }
 
   return json({ ok: true }, 200, cors);
+}
+
+// ---------------------------------------------------------------- HTML form posts
+
+async function toHtmlResponse(res, next, env) {
+  const body = await res.json().catch(() => ({}));
+  if (body.ok) {
+    if (isSafeRedirect(next, env)) {
+      return new Response(null, { status: 303, headers: { Location: next } });
+    }
+    return htmlPage("Thank you!", "We received your submission and will reply by email soon.", 200);
+  }
+  return htmlPage(
+    "Submission not sent",
+    `${escapeHtml(body.error || "Something went wrong.")}<br><br><a href="javascript:history.back()">&larr; Go back and try again</a>`,
+    res.status
+  );
+}
+
+function isSafeRedirect(next, env) {
+  try {
+    const u = new URL(next);
+    return allowedOrigins(env).includes(u.origin);
+  } catch {
+    return false;
+  }
+}
+
+function htmlPage(title, message, status) {
+  return new Response(
+    `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title>` +
+      `<body style="font-family:-apple-system,Segoe UI,Arial,sans-serif;max-width:520px;margin:15vh auto;padding:0 16px;text-align:center;color:#222">` +
+      `<h1 style="font-size:24px">${title}</h1><p style="line-height:1.6">${message}</p></body>`,
+    { status, headers: { "Content-Type": "text/html; charset=utf-8" } }
+  );
 }
 
 // ---------------------------------------------------------------- config
@@ -198,13 +260,16 @@ function config(env) {
   };
 }
 
-function corsHeaders(request, env) {
-  const origin = request.headers.get("origin") || "";
-  const allowed = String(env.ALLOWED_ORIGINS || "")
+function allowedOrigins(env) {
+  return String(env.ALLOWED_ORIGINS || "")
     .split(",")
     .map((s) => s.trim().replace(/\/$/, ""))
     .filter(Boolean);
-  if (!allowed.includes(origin)) return null;
+}
+
+function corsHeaders(request, env) {
+  const origin = request.headers.get("origin") || "";
+  if (!allowedOrigins(env).includes(origin)) return null;
   return {
     "Access-Control-Allow-Origin": origin,
     "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -261,12 +326,12 @@ function formatSize(bytes) {
   return bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
 }
 
-function renderHtml(values, files, attachedCount, links) {
-  const rows = FIELDS.filter(([k]) => values[k])
+function renderHtml(title, rows, files, attachedCount, links) {
+  const rowsHtml = [...rows]
     .map(
-      ([k, label]) =>
-        `<tr><td style="padding:6px 12px 6px 0;color:#666;vertical-align:top;white-space:nowrap">${label}</td>` +
-        `<td style="padding:6px 0;white-space:pre-wrap">${escapeHtml(values[k])}</td></tr>`
+      ([label, v]) =>
+        `<tr><td style="padding:6px 16px 6px 0;color:#666;vertical-align:top">${escapeHtml(label)}</td>` +
+        `<td style="padding:6px 0;white-space:pre-wrap">${escapeHtml(v.replace(/^\n+/, ""))}</td></tr>`
     )
     .join("");
   let filesHtml = "";
@@ -276,13 +341,13 @@ function renderHtml(values, files, attachedCount, links) {
     filesHtml = `<h3 style="margin:20px 0 8px">Files (${files.length})</h3><ul>${attached.concat(linked).join("")}</ul>`;
   }
   return `<div style="font-family:-apple-system,Segoe UI,Arial,sans-serif;font-size:14px;color:#222">
-<h2 style="margin:0 0 12px">New customer upload</h2>
-<table style="border-collapse:collapse">${rows}</table>${filesHtml}
+<h2 style="margin:0 0 12px">${escapeHtml(title)}</h2>
+<table style="border-collapse:collapse">${rowsHtml}</table>${filesHtml}
 <p style="color:#999;font-size:12px;margin-top:24px">Reply to this email to answer the customer directly.</p></div>`;
 }
 
-function renderText(values, files, attachedCount, links) {
-  const lines = FIELDS.filter(([k]) => values[k]).map(([k, label]) => `${label}: ${values[k]}`);
+function renderText(rows, files, attachedCount, links) {
+  const lines = [...rows].map(([label, v]) => `${label}: ${v}`);
   if (files.length) {
     lines.push("", `Files (${files.length}):`);
     files.slice(0, attachedCount).forEach((f) => lines.push(`- ${safeFilename(f.name)} (attached)`));

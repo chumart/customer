@@ -18,7 +18,7 @@ MAX_TOTAL_MB = "50"
 ATTACH_LIMIT_MB = "20"
 REQUIRE_FILE = "false"
 # Leave empty to allow any type.
-ALLOWED_EXTENSIONS = "jpg,jpeg,png,gif,webp,heic,heif,pdf,doc,docx,xls,xlsx,txt,zip,mp4,mov"
+ALLOWED_EXTENSIONS = "jpg,jpeg,png,gif,webp,heic,heif,pdf,doc,docx,xls,xlsx,csv,txt,zip,mp4,mov"
 
 # Only needed with the R2 bucket below: the Worker's public URL, used in download links.
 PUBLIC_URL = "https://shopify-upload-form.chumartusa.workers.dev"
